@@ -1,0 +1,17 @@
+#compiled python files
+*.pyc   
+#notepad++ backups
+*~      
+#Office backup files
+~$*     
+
+#don't add all the xilinx ip, just the needed header scripts
+
+xil_ip/fifo_synchronizer/*
+!xil_ip/fifo_synchronizer/fifo_synchronizer.xci
+
+xil_ip/lattice_mem/*
+!xil_ip/lattice_mem/lattice_mem.xci
+
+# no Notebook checkpoints
+*.ipynb*
