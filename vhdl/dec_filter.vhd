@@ -16,21 +16,22 @@ library work;
 
 entity dec_filter is
   generic (
-    DEC        : integer := 1024;
+    PARALLEL : integer := 2;
+    DEC : integer := 1024;
     CEILLOGDEC : integer := 10;
-    N          : integer := 32;
-    N_OUT      : integer := 32;
-    DIV        : integer := 1024
+    N: integer := 32;
+    N_OUT : integer := 32;
+    DIV : integer := 1024
     );
   port (
     Clk_CI    : in std_logic;           --! Clock
     Reset_RBI : in std_logic;           --! input reset
-
-
-    In_DI    : in std_logic_vector(N-1 downto 0);
+    
+    
+    In_DI : in std_logic_vector(PARALLEL*N-1 downto 0);
     Valid_SI : in std_logic;
-
-    Out_DO   : out std_logic_vector(N_OUT-1 downto 0);
+    
+    Out_DO : out std_logic_vector(PARALLEL*N_OUT-1 downto 0);
     Valid_SO : out std_logic
 
     );
@@ -39,41 +40,60 @@ end dec_filter;
 architecture Behavioral of dec_filter is
 
   signal Counter_DP, Counter_DN : integer range 0 to DEC-1;
-  signal Sum_DP, Sum_DN         : std_logic_vector(N+CEILLOGDEC-1 downto 0);
-
-  signal Out_DP, Out_DN : std_logic_vector(N_OUT-1 downto 0);
+  signal Sum_DP, Sum_DN : std_logic_vector(PARALLEL*(N+CEILLOGDEC)-1 downto 0);
+  
+  signal Valid_SN : std_logic;
+  signal Out_DP, Out_DN : std_logic_vector(PARALLEL*N_OUT-1 downto 0);
 begin
   
-  process(Counter_DP, In_DI, Out_DP, Sum_DP, Valid_SI)
+    
+  process(Counter_DP, Valid_SI)
   begin
     Counter_DN <= Counter_DP;
-    Sum_DN     <= Sum_DP;
-    Out_DN     <= Out_DP;
-
+    Valid_SN <= '0';
+    
     if Valid_SI = '1' then
-      Counter_DN <= (Counter_DP+1) mod DEC;
-      Sum_DN     <= std_logic_vector(signed(Sum_DP) + signed(In_DI));
-
-      if Counter_DP = N-1 then
-        Sum_DN <= std_logic_vector(resize(signed(In_DI), Sum_DN'length));
-        Out_DN <= std_logic_vector(resize(signed(Sum_DP) / DIV, Out_DN'length));
-      end if;
+        Counter_DN<=(Counter_DP+1) mod DEC;
+        
+        if Counter_DP = N-1 then
+            Valid_SN <= '1';
+        end if;
     end if;
-  end process;
-
+  end process; 
+  
+   PARALLEL_GEN: for I in 0 to PARALLEL-1 generate
+       process(Counter_DP, Sum_DP, Out_DP, Valid_SI, In_DI)
+       begin
+        Out_DN((I+1)*N_OUT-1 downto I*N_OUT) <= Out_DP((I+1)*N_OUT-1 downto I*N_OUT);
+        
+        if Valid_SI = '1' then
+            Sum_DN((I+1)*(N+CEILLOGDEC)-1 downto I*(N+CEILLOGDEC)) <= 
+                std_logic_vector(signed(Sum_DP((I+1)*(N+CEILLOGDEC)-1 downto I*(N+CEILLOGDEC))) 
+                + signed(In_DI((I+1)*N-1 downto I*N)));
+            
+            if Counter_DP = N-1 then
+                Sum_DN((I+1)*(N+CEILLOGDEC)-1 downto I*(N+CEILLOGDEC)) <= std_logic_vector(resize(signed(In_DI((I+1)*N-1 downto I*N)), N+CEILLOGDEC));
+                Out_DN((I+1)*N_OUT-1 downto I*N_OUT) <= std_logic_vector(resize(signed(Sum_DP((I+1)*(N+CEILLOGDEC)-1 downto I*(N+CEILLOGDEC))) / DIV, N_OUT));
+            end if;
+        end if;
+       end process;
+   end generate PARALLEL_GEN;
+  
   Out_DO <= Out_DP;
-
+  
   process(Clk_CI)
   begin
     if rising_edge(Clk_CI) then
       if Reset_RBI = '0' then
-        Out_DP     <= (others => '0');
-        Counter_DP <= 0;
-        Sum_DP     <= (others => '0');
+        Out_DP   <= (others=>'0');
+        Counter_DP   <= 0;
+        Sum_DP   <= (others=>'0');
+        Valid_SO <= '0';
       else
-        Out_DP     <= Out_DN;
-        Counter_DP <= Counter_DN;
-        Sum_DP     <= Sum_DN;
+        Out_DP   <= Out_DN;
+        Valid_SO <= Valid_SN;
+        Counter_DP   <= Counter_DN;
+        Sum_DP   <= Sum_DN;
       end if;
     end if;
   end process;

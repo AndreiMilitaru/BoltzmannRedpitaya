@@ -95,5 +95,10 @@ set_property VERILOG_DEFINE {TOOL_VIVADO} [current_fileset]
 set_property STRATEGY Flow_PerfOptimized_High [get_runs synth_1]
 set_property STRATEGY Performance_NetDelay_high [get_runs impl_1]
 
+create_bd_cell -type hier soc
+move_bd_cells [get_bd_cells soc] [get_bd_cells ps7_0_axi_periph]
+move_bd_cells [get_bd_cells soc] [get_bd_cells rst_ps7_0_125M]
+move_bd_cells [get_bd_cells soc] [get_bd_cells processing_system7_0]
+
 regenerate_bd_layout
 

@@ -8,8 +8,6 @@ connect_bd_net [get_bd_ports adc_dat_a_i] [get_bd_pins axis_red_pitaya_adc_0/adc
 connect_bd_net [get_bd_ports adc_dat_b_i] [get_bd_pins axis_red_pitaya_adc_0/adc_dat_b]
 connect_bd_net [get_bd_ports adc_csn_o] [get_bd_pins axis_red_pitaya_adc_0/adc_csn]
 
-create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_1
-connect_bd_net [get_bd_pins xlconstant_1/dout] [get_bd_pins axis_red_pitaya_dac_0/s_axis_tvalid]
 
 
 
@@ -26,32 +24,13 @@ connect_bd_net [get_bd_ports dac_clk_o] [get_bd_pins axis_red_pitaya_dac_0/dac_c
 startgroup
 create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:5.4 clk_wiz_0
 set_property -dict [list CONFIG.PRIM_IN_FREQ.VALUE_SRC USER] [get_bd_cells clk_wiz_0]
-set_property -dict [list CONFIG.PRIM_IN_FREQ {125.000} CONFIG.USE_RESET {false}] [get_bd_cells clk_wiz_0]
+set_property -dict [list CONFIG.PRIM_IN_FREQ {31.25000} CONFIG.USE_RESET {false}] [get_bd_cells clk_wiz_0]
 set_property -dict [list CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250}] [get_bd_cells clk_wiz_0]
 endgroup
 
 connect_bd_net [get_bd_pins clk_wiz_0/locked] [get_bd_pins axis_red_pitaya_dac_0/locked]
 connect_bd_net [get_bd_pins axis_red_pitaya_dac_0/ddr_clk] [get_bd_pins clk_wiz_0/clk_out1]
 connect_bd_net [get_bd_pins axis_red_pitaya_dac_0/aclk] [get_bd_pins clk_wiz_0/clk_in1]
-
-connect_bd_net [get_bd_pins axis_red_pitaya_adc_0/adc_clk] [get_bd_pins axis_red_pitaya_dac_0/aclk]
-
-
-#NCO
-
-create_bd_cell -type module -reference waveform_gen waveform_gen_0
-
-connect_bd_net [get_bd_pins waveform_gen_0/reset] [get_bd_pins rst_ps7_0_125M/peripheral_aresetn]
-
-create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0
-connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins waveform_gen_0/en]
-
-connect_bd_net [get_bd_pins axi_gpio_0/gpio_io_i] [get_bd_pins axi_gpio_0/gpio_io_o]
-
-connect_bd_net [get_bd_pins waveform_gen_0/clk] [get_bd_pins axis_red_pitaya_adc_0/adc_clk]
-
-
-
 
 
 

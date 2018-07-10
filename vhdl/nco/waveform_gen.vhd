@@ -44,8 +44,8 @@ port (
   squ_out     : out std_logic_vector(11 downto 0);
   saw_out     : out std_logic_vector(11 downto 0);
 
-  dig_sq_out  : out std_logic;
-  dig_sq90_out: out std_logic );
+  sgn_sin_out : out std_logic;
+  sgn_cos_out : out std_logic );
  
 end entity;
  
@@ -142,8 +142,8 @@ saw_out <= lut_addr_reg;
  
  
 -- Digital square waves. The two signals are 90 degrees out of phase.
-dig_sq_out <= lut_addr_reg(11);
-dig_sq90_out <= lut_addr_reg(11) xor lut_addr_reg(10);
+sgn_sin_out <= not(lut_addr_reg(11));
+sgn_cos_out <= not(lut_addr_reg(11) xor lut_addr_reg(10));
 
  
 end rtl;
