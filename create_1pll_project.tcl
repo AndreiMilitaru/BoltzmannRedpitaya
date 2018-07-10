@@ -18,7 +18,7 @@ if {[llength $files] > 0} {
 update_compile_order -fileset sources_1
 
 #add ADC files
-add_files -norecurse cores/axis_red_pitaya_adc_v1_0/axis_red_pitaya_adc.vhd
+add_files -norecurse cores/axis_red_pitaya_adc_v1_0/*.vhd
 
 
 #add DAC files
