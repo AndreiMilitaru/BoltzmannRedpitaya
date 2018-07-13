@@ -1,4 +1,4 @@
-set project_name redpitaya_pll
+set project_name redpitaya_2plls
 set part_name xc7z010clg400-1
 set bd_path tmp/$project_name/$project_name.srcs/sources_1/bd/system
 
@@ -27,7 +27,7 @@ add_files -norecurse cores/axis_red_pitaya_dac_v1_0/axis_red_pitaya_dac.v
 #add constraint files
 add_files -fileset constrs_1 -norecurse {cfg/clocks.xdc cfg/ports.xdc}
 
-source scripts/create_block_design_onepll.tcl
+source scripts/create_block_design_twoplls.tcl
 
 set_property CONFIG.FREQ_HZ 31250000 [get_bd_pins /adc/axis_red_pitaya_adc_0/adc_clk]
 

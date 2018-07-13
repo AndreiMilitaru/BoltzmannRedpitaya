@@ -40,7 +40,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 
 # The design that will be created by this Tcl script contains the following 
 # module references:
-# fix_div, pid_w_range, axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch, dec_filter, mult_n_1, mult_n_1, freq_div, nco_driver_2, waveform_gen, weight_sum
+# dec_filter, exp_avg_filter_order, fix_div, pid_w_range, axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch, dec_filter, exp_avg_filter_order, exp_avg_filter_order, mult_n_1, mult_n_1, freq_div, nco_driver_2, waveform_gen, weight_sum
 
 # Please add the sources of those modules before sourcing this Tcl script.
 
@@ -295,6 +295,7 @@ proc create_hier_cell_soc { parentCell nameHier } {
   create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 M00_AXI
   create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 M01_AXI
   create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 M02_AXI
+  create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 M03_AXI
 
   # Create pins
   create_bd_pin -dir I -type clk clk
@@ -328,6 +329,7 @@ CONFIG.NUM_MI {6} \
   connect_bd_intf_net -intf_net Conn3 [get_bd_intf_pins FIXED_IO] [get_bd_intf_pins processing_system7_0/FIXED_IO]
   connect_bd_intf_net -intf_net Conn4 [get_bd_intf_pins M01_AXI] [get_bd_intf_pins ps7_0_axi_periph/M01_AXI]
   connect_bd_intf_net -intf_net Conn5 [get_bd_intf_pins M02_AXI] [get_bd_intf_pins ps7_0_axi_periph/M02_AXI]
+  connect_bd_intf_net -intf_net Conn6 [get_bd_intf_pins M03_AXI] [get_bd_intf_pins ps7_0_axi_periph/M03_AXI]
   connect_bd_intf_net -intf_net S00_AXI_1 [get_bd_intf_pins processing_system7_0/M_AXI_GP0] [get_bd_intf_pins ps7_0_axi_periph/S00_AXI]
 
   # Create port connections
@@ -380,7 +382,9 @@ proc create_hier_cell_phase_det { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
+  create_bd_pin -dir I -from 23 -to 0 Alpha_DI
   create_bd_pin -dir I Clk_CI
+  create_bd_pin -dir I -from 2 -to 0 Order_SI
   create_bd_pin -dir O PhiValid_SO
   create_bd_pin -dir O -from 15 -to 0 Phi_DO
   create_bd_pin -dir I -from 15 -to 0 Ref_DI
@@ -417,11 +421,41 @@ CONFIG.Phase_Format {Scaled_Radians} \
      return 1
    }
     set_property -dict [ list \
+CONFIG.CEILLOGDEC {8} \
 CONFIG.DEC {256} \
 CONFIG.DIV {256} \
 CONFIG.N {16} \
 CONFIG.N_OUT {16} \
+CONFIG.PARALLEL {2} \
  ] $dec_filter_0
+
+  # Create instance: exp_avg_filter_order_0, and set properties
+  set block_name exp_avg_filter_order
+  set block_cell_name exp_avg_filter_order_0
+  if { [catch {set exp_avg_filter_order_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $exp_avg_filter_order_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+CONFIG.N_ALPHA {24} \
+ ] $exp_avg_filter_order_0
+
+  # Create instance: exp_avg_filter_order_1, and set properties
+  set block_name exp_avg_filter_order
+  set block_cell_name exp_avg_filter_order_1
+  if { [catch {set exp_avg_filter_order_1 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $exp_avg_filter_order_1 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+CONFIG.N_ALPHA {24} \
+ ] $exp_avg_filter_order_1
 
   # Create instance: fir_compiler_0, and set properties
   set fir_compiler_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:fir_compiler:7.2 fir_compiler_0 ]
@@ -485,6 +519,13 @@ CONFIG.IN0_WIDTH {16} \
 CONFIG.IN1_WIDTH {16} \
  ] $xlconcat_0
 
+  # Create instance: xlconcat_1, and set properties
+  set xlconcat_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_1 ]
+  set_property -dict [ list \
+CONFIG.IN0_WIDTH {16} \
+CONFIG.IN1_WIDTH {16} \
+ ] $xlconcat_1
+
   # Create instance: xlconstant_0, and set properties
   set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
 
@@ -518,18 +559,38 @@ CONFIG.DIN_TO {16} \
 CONFIG.DOUT_WIDTH {16} \
  ] $xlslice_3
 
+  # Create instance: xlslice_4, and set properties
+  set xlslice_4 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_4 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {31} \
+CONFIG.DIN_TO {16} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $xlslice_4
+
+  # Create instance: xlslice_5, and set properties
+  set xlslice_5 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_5 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {0} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $xlslice_5
+
   # Create port connections
+  connect_bd_net -net Alpha_DI_1 [get_bd_pins Alpha_DI] [get_bd_pins exp_avg_filter_order_0/Alpha_DI] [get_bd_pins exp_avg_filter_order_1/Alpha_DI]
   connect_bd_net -net Net [get_bd_pins Ref_DI] [get_bd_pins mult_n_1_0/A_DI] [get_bd_pins mult_n_1_1/A_DI]
-  connect_bd_net -net Net1 [get_bd_pins Clk_CI] [get_bd_pins cordic_0/aclk] [get_bd_pins dec_filter_0/Clk_CI] [get_bd_pins fir_compiler_0/aclk] [get_bd_pins mult_n_1_0/Clk_CI] [get_bd_pins mult_n_1_1/Clk_CI]
-  connect_bd_net -net Net2 [get_bd_pins Reset_RBI] [get_bd_pins dec_filter_0/Reset_RBI] [get_bd_pins mult_n_1_0/Reset_RBI] [get_bd_pins mult_n_1_1/Reset_RBI]
+  connect_bd_net -net Net1 [get_bd_pins Clk_CI] [get_bd_pins cordic_0/aclk] [get_bd_pins dec_filter_0/Clk_CI] [get_bd_pins exp_avg_filter_order_0/Clk_CI] [get_bd_pins exp_avg_filter_order_1/Clk_CI] [get_bd_pins fir_compiler_0/aclk] [get_bd_pins mult_n_1_0/Clk_CI] [get_bd_pins mult_n_1_1/Clk_CI]
+  connect_bd_net -net Net2 [get_bd_pins Reset_RBI] [get_bd_pins dec_filter_0/Reset_RBI] [get_bd_pins exp_avg_filter_order_0/Reset_RBI] [get_bd_pins exp_avg_filter_order_1/Reset_RBI] [get_bd_pins mult_n_1_0/Reset_RBI] [get_bd_pins mult_n_1_1/Reset_RBI]
+  connect_bd_net -net Order_SI_1 [get_bd_pins Order_SI] [get_bd_pins exp_avg_filter_order_0/Order_SI] [get_bd_pins exp_avg_filter_order_1/Order_SI]
   connect_bd_net -net SGN_COS_1 [get_bd_pins SGN_COS] [get_bd_pins mult_n_1_0/B_DI]
   connect_bd_net -net SGN_SIN_1 [get_bd_pins SGN_SIN] [get_bd_pins mult_n_1_1/B_DI]
   connect_bd_net -net cordic_0_m_axis_dout_tdata [get_bd_pins Phi_DO] [get_bd_pins cordic_0/m_axis_dout_tdata]
   connect_bd_net -net cordic_0_m_axis_dout_tvalid [get_bd_pins PhiValid_SO] [get_bd_pins cordic_0/m_axis_dout_tvalid]
-  connect_bd_net -net dec_filter_0_Out_DO [get_bd_pins dec_filter_0/Out_DO] [get_bd_pins fir_compiler_0/s_axis_data_tdata] [get_bd_pins xlslice_0/Din] [get_bd_pins xlslice_2/Din]
-  connect_bd_net -net dec_filter_0_Valid_SO [get_bd_pins mix_dec_valid] [get_bd_pins dec_filter_0/Valid_SO] [get_bd_pins fir_compiler_0/s_axis_data_tvalid]
-  connect_bd_net -net fir_compiler_0_m_axis_data_tdata [get_bd_pins cordic_0/s_axis_cartesian_tdata] [get_bd_pins fir_compiler_0/m_axis_data_tdata] [get_bd_pins xlslice_1/Din] [get_bd_pins xlslice_3/Din]
-  connect_bd_net -net fir_compiler_0_m_axis_data_tvalid [get_bd_pins mix_lpf_valid] [get_bd_pins cordic_0/s_axis_cartesian_tvalid] [get_bd_pins fir_compiler_0/m_axis_data_tvalid]
+  connect_bd_net -net dec_filter_0_Out_DO [get_bd_pins dec_filter_0/Out_DO] [get_bd_pins fir_compiler_0/s_axis_data_tdata] [get_bd_pins xlslice_0/Din] [get_bd_pins xlslice_2/Din] [get_bd_pins xlslice_4/Din] [get_bd_pins xlslice_5/Din]
+  connect_bd_net -net dec_filter_0_Valid_SO [get_bd_pins mix_dec_valid] [get_bd_pins dec_filter_0/Valid_SO] [get_bd_pins exp_avg_filter_order_0/Valid_SI] [get_bd_pins exp_avg_filter_order_1/Valid_SI] [get_bd_pins fir_compiler_0/s_axis_data_tvalid]
+  connect_bd_net -net exp_avg_filter_order_0_Y_DO [get_bd_pins exp_avg_filter_order_0/Y_DO] [get_bd_pins xlconcat_1/In1]
+  connect_bd_net -net exp_avg_filter_order_1_Y_DO [get_bd_pins exp_avg_filter_order_1/Y_DO] [get_bd_pins xlconcat_1/In0]
+  connect_bd_net -net fir_compiler_0_m_axis_data_tdata [get_bd_pins cordic_0/s_axis_cartesian_tdata] [get_bd_pins xlconcat_1/dout] [get_bd_pins xlslice_1/Din] [get_bd_pins xlslice_3/Din]
+  connect_bd_net -net fir_compiler_0_m_axis_data_tvalid [get_bd_pins mix_lpf_valid] [get_bd_pins cordic_0/s_axis_cartesian_tvalid] [get_bd_pins exp_avg_filter_order_1/Valid_SO]
   connect_bd_net -net mult_n_1_0_C_DO [get_bd_pins mix_cos] [get_bd_pins mult_n_1_0/C_DO] [get_bd_pins xlconcat_0/In0]
   connect_bd_net -net mult_n_1_1_C_DO [get_bd_pins mix_sin] [get_bd_pins mult_n_1_1/C_DO] [get_bd_pins xlconcat_0/In1]
   connect_bd_net -net xlconcat_0_dout [get_bd_pins dec_filter_0/In_DI] [get_bd_pins xlconcat_0/dout]
@@ -538,6 +599,8 @@ CONFIG.DOUT_WIDTH {16} \
   connect_bd_net -net xlslice_1_Dout [get_bd_pins mix_cos_lpf] [get_bd_pins xlslice_1/Dout]
   connect_bd_net -net xlslice_2_Dout [get_bd_pins mix_sin_dec] [get_bd_pins xlslice_2/Dout]
   connect_bd_net -net xlslice_3_Dout [get_bd_pins mix_sin_lpf] [get_bd_pins xlslice_3/Dout]
+  connect_bd_net -net xlslice_4_Dout [get_bd_pins exp_avg_filter_order_0/X_DI] [get_bd_pins xlslice_4/Dout]
+  connect_bd_net -net xlslice_5_Dout [get_bd_pins exp_avg_filter_order_1/X_DI] [get_bd_pins xlslice_5/Dout]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -834,8 +897,44 @@ CONFIG.C_IS_DUAL {1} \
 CONFIG.C_IS_DUAL {1} \
  ] $axi_gpio_2
 
+  # Create instance: axi_gpio_3, and set properties
+  set axi_gpio_3 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 axi_gpio_3 ]
+
   # Create instance: dac
   create_hier_cell_dac [current_bd_instance .] dac
+
+  # Create instance: dec_filter_0, and set properties
+  set block_name dec_filter
+  set block_cell_name dec_filter_0
+  if { [catch {set dec_filter_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $dec_filter_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+CONFIG.CEILLOGDEC {8} \
+CONFIG.DEC {256} \
+CONFIG.DIV {256} \
+CONFIG.N {16} \
+CONFIG.N_OUT {16} \
+CONFIG.PARALLEL {1} \
+ ] $dec_filter_0
+
+  # Create instance: exp_avg_filter_order_0, and set properties
+  set block_name exp_avg_filter_order
+  set block_cell_name exp_avg_filter_order_0
+  if { [catch {set exp_avg_filter_order_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $exp_avg_filter_order_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+CONFIG.N_ALPHA {24} \
+ ] $exp_avg_filter_order_0
 
   # Create instance: fix_div_0, and set properties
   set block_name fix_div
@@ -887,9 +986,6 @@ CONFIG.C_SIZE {2} \
 
   # Create instance: xlconstant_0, and set properties
   set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
-
-  # Create instance: xlconstant_1, and set properties
-  set xlconstant_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_1 ]
 
   # Create instance: xlslice_0, and set properties
   set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
@@ -982,12 +1078,37 @@ CONFIG.DIN_WIDTH {16} \
 CONFIG.DOUT_WIDTH {14} \
  ] $xlslice_10
 
+  # Create instance: xlslice_11, and set properties
+  set xlslice_11 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_11 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {26} \
+CONFIG.DIN_TO {3} \
+CONFIG.DOUT_WIDTH {24} \
+ ] $xlslice_11
+
+  # Create instance: xlslice_12, and set properties
+  set xlslice_12 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_12 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {2} \
+CONFIG.DOUT_WIDTH {3} \
+ ] $xlslice_12
+
+  # Create instance: xlslice_13, and set properties
+  set xlslice_13 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_13 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $xlslice_13
+
   # Create interface connections
   connect_bd_intf_net -intf_net soc_DDR [get_bd_intf_ports DDR] [get_bd_intf_pins soc/DDR]
   connect_bd_intf_net -intf_net soc_FIXED_IO [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins soc/FIXED_IO]
   connect_bd_intf_net -intf_net soc_M00_AXI [get_bd_intf_pins axi_gpio_0/S_AXI] [get_bd_intf_pins soc/M00_AXI]
   connect_bd_intf_net -intf_net soc_M01_AXI [get_bd_intf_pins axi_gpio_1/S_AXI] [get_bd_intf_pins soc/M01_AXI]
   connect_bd_intf_net -intf_net soc_M02_AXI [get_bd_intf_pins axi_gpio_2/S_AXI] [get_bd_intf_pins soc/M02_AXI]
+  connect_bd_intf_net -intf_net soc_M03_AXI [get_bd_intf_pins axi_gpio_3/S_AXI] [get_bd_intf_pins soc/M03_AXI]
 
   # Create port connections
   connect_bd_net -net In0_DI_1 [get_bd_pins dac/In0_DI] [get_bd_pins wave_gen/C_DO]
@@ -997,9 +1118,10 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_net -net SGN_COS_1 [get_bd_pins phase_det/SGN_COS] [get_bd_pins wave_gen/SGN_COS]
   connect_bd_net -net SGN_SIN_1 [get_bd_pins phase_det/SGN_SIN] [get_bd_pins wave_gen/SGN_SIN]
   connect_bd_net -net Valid0_SI_1 [get_bd_pins dac/Valid0_SI] [get_bd_pins wave_gen/Valid_SO]
-  connect_bd_net -net Valid4_SI_1 [get_bd_pins dac/Valid4_SI] [get_bd_pins phase_det/mix_dec_valid]
-  connect_bd_net -net Valid5_SI_1 [get_bd_pins dac/Valid1_SI] [get_bd_pins xlconstant_1/dout]
-  connect_bd_net -net Valid5_SI_2 [get_bd_pins dac/Valid3_SI] [get_bd_pins dac/Valid5_SI] [get_bd_pins phase_det/mix_lpf_valid]
+  connect_bd_net -net Valid5_SI_2 [get_bd_pins dac/Valid3_SI] [get_bd_pins dac/Valid4_SI] [get_bd_pins phase_det/mix_lpf_valid]
+  connect_bd_net -net Valid6_SI_1 [get_bd_pins dac/Valid5_SI] [get_bd_pins dac/Valid6_SI] [get_bd_pins phase_det/mix_dec_valid]
+  connect_bd_net -net Valid7_SI_1 [get_bd_pins dac/Valid7_SI] [get_bd_pins fix_div_0/Valid_SO]
+  connect_bd_net -net adc_adc_b [get_bd_pins adc/adc_b] [get_bd_pins dec_filter_0/In_DI]
   connect_bd_net -net adc_adc_csn [get_bd_ports adc_csn_o] [get_bd_pins adc/adc_csn]
   connect_bd_net -net adc_clk_n_i_1 [get_bd_ports adc_clk_n_i] [get_bd_pins adc/adc_clk_n]
   connect_bd_net -net adc_clk_p_i_1 [get_bd_ports adc_clk_p_i] [get_bd_pins adc/adc_clk_p]
@@ -1011,7 +1133,8 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_net -net axi_gpio_1_gpio_io_o [get_bd_pins axi_gpio_1/gpio_io_i] [get_bd_pins axi_gpio_1/gpio_io_o] [get_bd_pins pid_w_range_0/Kp]
   connect_bd_net -net axi_gpio_2_gpio2_io_o [get_bd_pins axi_gpio_2/gpio2_io_i] [get_bd_pins axi_gpio_2/gpio2_io_o] [get_bd_pins pid_w_range_0/Range_DI]
   connect_bd_net -net axi_gpio_2_gpio_io_o [get_bd_pins axi_gpio_2/gpio_io_i] [get_bd_pins axi_gpio_2/gpio_io_o] [get_bd_pins wave_gen/NcoSet_DI]
-  connect_bd_net -net clk_1 [get_bd_pins adc/adc_clk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_gpio_1/s_axi_aclk] [get_bd_pins axi_gpio_2/s_axi_aclk] [get_bd_pins dac/Clk_CI] [get_bd_pins fix_div_0/Clk_CI] [get_bd_pins phase_det/Clk_CI] [get_bd_pins pid_w_range_0/Clk_CI] [get_bd_pins soc/clk] [get_bd_pins wave_gen/Clk_CI]
+  connect_bd_net -net axi_gpio_3_gpio_io_o [get_bd_pins axi_gpio_3/gpio_io_i] [get_bd_pins axi_gpio_3/gpio_io_o] [get_bd_pins xlslice_11/Din] [get_bd_pins xlslice_12/Din]
+  connect_bd_net -net clk_1 [get_bd_pins adc/adc_clk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_gpio_1/s_axi_aclk] [get_bd_pins axi_gpio_2/s_axi_aclk] [get_bd_pins axi_gpio_3/s_axi_aclk] [get_bd_pins dac/Clk_CI] [get_bd_pins dec_filter_0/Clk_CI] [get_bd_pins exp_avg_filter_order_0/Clk_CI] [get_bd_pins fix_div_0/Clk_CI] [get_bd_pins phase_det/Clk_CI] [get_bd_pins pid_w_range_0/Clk_CI] [get_bd_pins soc/clk] [get_bd_pins wave_gen/Clk_CI]
   connect_bd_net -net dac_dac_clk [get_bd_ports dac_clk_o] [get_bd_pins dac/dac_clk]
   connect_bd_net -net dac_dac_dat [get_bd_ports dac_dat_o] [get_bd_pins dac/dac_dat]
   connect_bd_net -net dac_dac_rst [get_bd_ports dac_rst_o] [get_bd_pins dac/dac_rst]
@@ -1019,34 +1142,42 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_net -net dac_dac_wrt [get_bd_ports dac_wrt_o] [get_bd_pins dac/dac_wrt]
   connect_bd_net -net daisy_n_i_1 [get_bd_ports daisy_n_i] [get_bd_pins util_ds_buf_1/IBUF_DS_N]
   connect_bd_net -net daisy_p_i_1 [get_bd_ports daisy_p_i] [get_bd_pins util_ds_buf_1/IBUF_DS_P]
-  connect_bd_net -net fix_div_0_Dout_DO [get_bd_pins dac/In6_DI] [get_bd_pins fix_div_0/Dout_DO]
-  connect_bd_net -net fix_div_0_Valid_SO [get_bd_pins dac/Valid6_SI] [get_bd_pins fix_div_0/Valid_SO]
+  connect_bd_net -net dec_filter_0_Out_DO [get_bd_pins dec_filter_0/Out_DO] [get_bd_pins exp_avg_filter_order_0/X_DI]
+  connect_bd_net -net dec_filter_0_Valid_SO [get_bd_pins dec_filter_0/Valid_SO] [get_bd_pins exp_avg_filter_order_0/Valid_SI]
+  connect_bd_net -net exp_avg_filter_order_0_Valid_SO [get_bd_pins dac/Valid1_SI] [get_bd_pins exp_avg_filter_order_0/Valid_SO]
+  connect_bd_net -net exp_avg_filter_order_0_Y_DO [get_bd_pins exp_avg_filter_order_0/Y_DO] [get_bd_pins xlslice_7/Din]
+  connect_bd_net -net fix_div_0_Dout_DO [get_bd_pins dac/In7_DI] [get_bd_pins fix_div_0/Dout_DO]
   connect_bd_net -net phase_det_PhiValid_SO [get_bd_pins dac/Valid2_SI] [get_bd_pins phase_det/PhiValid_SO] [get_bd_pins pid_w_range_0/Valid_SI]
   connect_bd_net -net phase_det_Phi_DO [get_bd_pins phase_det/Phi_DO] [get_bd_pins pid_w_range_0/Din_DI] [get_bd_pins xlslice_2/Din]
   connect_bd_net -net phase_det_mix_cos_dec [get_bd_pins phase_det/mix_cos_dec] [get_bd_pins xlslice_9/Din]
   connect_bd_net -net phase_det_mix_cos_lpf [get_bd_pins phase_det/mix_cos_lpf] [get_bd_pins xlslice_10/Din]
+  connect_bd_net -net phase_det_mix_sin_dec [get_bd_pins phase_det/mix_sin_dec] [get_bd_pins xlslice_13/Din]
   connect_bd_net -net phase_det_mix_sin_lpf [get_bd_pins phase_det/mix_sin_lpf] [get_bd_pins xlslice_8/Din]
   connect_bd_net -net pid_w_range_0_Dout_DO [get_bd_pins fix_div_0/Din_DI] [get_bd_pins pid_w_range_0/Dout_DO] [get_bd_pins wave_gen/PidIn_DI]
   connect_bd_net -net pid_w_range_0_Valid_SO [get_bd_pins fix_div_0/Valid_SI] [get_bd_pins pid_w_range_0/Valid_SO] [get_bd_pins wave_gen/PidValid_SI]
-  connect_bd_net -net soc_peripheral_aresetn [get_bd_pins axi_gpio_0/s_axi_aresetn] [get_bd_pins axi_gpio_1/s_axi_aresetn] [get_bd_pins axi_gpio_2/s_axi_aresetn] [get_bd_pins soc/peripheral_aresetn]
+  connect_bd_net -net soc_peripheral_aresetn [get_bd_pins axi_gpio_0/s_axi_aresetn] [get_bd_pins axi_gpio_1/s_axi_aresetn] [get_bd_pins axi_gpio_2/s_axi_aresetn] [get_bd_pins axi_gpio_3/s_axi_aresetn] [get_bd_pins soc/peripheral_aresetn]
   connect_bd_net -net util_ds_buf_1_IBUF_OUT [get_bd_pins util_ds_buf_1/IBUF_OUT] [get_bd_pins util_ds_buf_2/OBUF_IN]
   connect_bd_net -net util_ds_buf_2_OBUF_DS_N [get_bd_ports daisy_n_o] [get_bd_pins util_ds_buf_2/OBUF_DS_N]
   connect_bd_net -net util_ds_buf_2_OBUF_DS_P [get_bd_ports daisy_p_o] [get_bd_pins util_ds_buf_2/OBUF_DS_P]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins dac/Reset_RBI] [get_bd_pins fix_div_0/Reset_RBI] [get_bd_pins phase_det/Reset_RBI] [get_bd_pins pid_w_range_0/Reset_RBI] [get_bd_pins wave_gen/Reset_RBI] [get_bd_pins xlconstant_0/dout]
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins dac/Reset_RBI] [get_bd_pins dec_filter_0/Reset_RBI] [get_bd_pins dec_filter_0/Valid_SI] [get_bd_pins exp_avg_filter_order_0/Reset_RBI] [get_bd_pins fix_div_0/Reset_RBI] [get_bd_pins phase_det/Reset_RBI] [get_bd_pins pid_w_range_0/Reset_RBI] [get_bd_pins wave_gen/Reset_RBI] [get_bd_pins xlconstant_0/dout]
   connect_bd_net -net xlslice_0_Dout [get_bd_pins dac/SwitchDac0_SI] [get_bd_pins xlslice_0/Dout]
-  connect_bd_net -net xlslice_10_Dout [get_bd_pins dac/In5_DI] [get_bd_pins xlslice_10/Dout]
+  connect_bd_net -net xlslice_10_Dout [get_bd_pins dac/In4_DI] [get_bd_pins xlslice_10/Dout]
+  connect_bd_net -net xlslice_11_Dout [get_bd_pins exp_avg_filter_order_0/Alpha_DI] [get_bd_pins phase_det/Alpha_DI] [get_bd_pins xlslice_11/Dout]
+  connect_bd_net -net xlslice_12_Dout [get_bd_pins exp_avg_filter_order_0/Order_SI] [get_bd_pins phase_det/Order_SI] [get_bd_pins xlslice_12/Dout]
+  connect_bd_net -net xlslice_13_Dout [get_bd_pins dac/In5_DI] [get_bd_pins xlslice_13/Dout]
   connect_bd_net -net xlslice_1_Dout [get_bd_pins dac/SwitchDac1_SI] [get_bd_pins xlslice_1/Dout]
   connect_bd_net -net xlslice_2_Dout [get_bd_pins dac/In2_DI] [get_bd_pins xlslice_2/Dout]
   connect_bd_net -net xlslice_3_Dout [get_bd_pins wave_gen/WA_DI] [get_bd_pins xlslice_3/Dout]
   connect_bd_net -net xlslice_4_Dout [get_bd_pins wave_gen/WB_DI] [get_bd_pins xlslice_4/Dout]
   connect_bd_net -net xlslice_5_Dout [get_bd_pins wave_gen/PidEn_SI] [get_bd_pins xlslice_5/Dout]
   connect_bd_net -net xlslice_6_Dout [get_bd_pins wave_gen/Div_SI] [get_bd_pins xlslice_6/Dout]
-  connect_bd_net -net xlslice_9_Dout [get_bd_pins dac/In4_DI] [get_bd_pins xlslice_9/Dout]
+  connect_bd_net -net xlslice_9_Dout [get_bd_pins dac/In6_DI] [get_bd_pins xlslice_9/Dout]
 
   # Create address segments
-  create_bd_addr_seg -range 0x00001000 -offset 0x41200000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_0/S_AXI/Reg] SEG_axi_gpio_0_Reg
-  create_bd_addr_seg -range 0x00001000 -offset 0x41210000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_1/S_AXI/Reg] SEG_axi_gpio_1_Reg
-  create_bd_addr_seg -range 0x00001000 -offset 0x41220000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_2/S_AXI/Reg] SEG_axi_gpio_2_Reg
+  create_bd_addr_seg -range 0x00010000 -offset 0x41200000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_0/S_AXI/Reg] SEG_axi_gpio_0_Reg
+  create_bd_addr_seg -range 0x00010000 -offset 0x41210000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_1/S_AXI/Reg] SEG_axi_gpio_1_Reg
+  create_bd_addr_seg -range 0x00010000 -offset 0x41220000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_2/S_AXI/Reg] SEG_axi_gpio_2_Reg
+  create_bd_addr_seg -range 0x00010000 -offset 0x41230000 [get_bd_addr_spaces soc/processing_system7_0/Data] [get_bd_addr_segs axi_gpio_3/S_AXI/Reg] SEG_axi_gpio_3_Reg
 
 
   # Restore current instance
