@@ -20,12 +20,13 @@ entity sum_limit is
   port (
     Clk_CI    : in std_logic;           --! Clock
     Reset_RBI : in std_logic;           --! input reset
-    
-    A_DI : in std_logic_vector(N-1 downto 0);
-    B_DI : in std_logic_vector(N-1 downto 0);
-    Valid_SI : in std_logic;
-    
-    C_DO : out std_logic_vector(N-1 downto 0);
+
+    A_DI      : in std_logic_vector(N-1 downto 0);
+    B_DI      : in std_logic_vector(N-1 downto 0);
+    ValidA_SI : in std_logic;
+    ValidB_SI : in std_logic;
+
+    C_DO     : out std_logic_vector(N-1 downto 0);
     Valid_SO : out std_logic
 
     );
@@ -33,25 +34,29 @@ end sum_limit;
 
 architecture Behavioral of sum_limit is
   
-  signal C_DN, C_DP     : std_logic_vector(N - 1 downto 0);
+  signal A_DP, A_DN : std_logic_vector(N-1 downto 0);
+  signal B_DP, B_DN : std_logic_vector(N-1 downto 0);
+  signal C_DN, C_DP : std_logic_vector(N - 1 downto 0);
 begin
+  A_DN     <= A_DI when ValidA_SI = '1' else A_DP;
+  B_DN     <= B_DI when ValidB_SI = '1' else B_DP;
+  C_DO     <= C_DP;
+  Valid_SO <= '1';
 
-    C_DO <= C_DP;
-
-  process(AMult_DP, BMult_DP, Valid_SI, A_DI, B_DI, WA_DI, WB_DI)  
-      variable sum_long : std_logic_vector(N downto 0);
-      constant MAX: std_logic_vector(N-1 downto 0) := (N-1=>'0', others => '1');
-      constant MIN: std_logic_vector(N-1 downto 0) := (N-1=>'1', others => '0');
+  process(A_DP, B_DP)
+    variable sum_long : std_logic_vector(N downto 0);
+    constant MAX      : std_logic_vector(N-1 downto 0) := (N-1 => '0', others => '1');
+    constant min      : std_logic_vector(N-1 downto 0) := (N-1 => '1', others => '0');
   begin
     
-    sum_long := std_logic_vector(resize(signed(A_DI), N+1) + signed(B_DI));
-    
+    sum_long := std_logic_vector(resize(signed(A_DP), N+1) + signed(B_DP));
+
     if (signed(sum_long) > signed(MAX)) then
-        C_DN <= MAX;
-    elsif (signed(sum_long) < signed(MIN)) then
-        C_DN <= MIN;
+      C_DN <= MAX;
+    elsif (signed(sum_long) < signed(min)) then
+      C_DN <= min;
     else
-        C_DN <= std_logic_vector(resize(signed(sum_long), N_OUT));
+      C_DN <= std_logic_vector(resize(signed(sum_long), N));
     end if;
     
   end process;
@@ -61,11 +66,13 @@ begin
   begin
     if rising_edge(Clk_CI) then
       if Reset_RBI = '0' then
+        A_DP <= (others => '0');
+        B_DP <= (others => '0');
         C_DP <= (others => '0');
-        Valid_SO <= '0';
       else
+        A_DP <= A_DN;
+        B_DP <= B_DN;
         C_DP <= C_DN;
-        Valid_SO <= Valid_SI;
       end if;
     end if;
   end process;
