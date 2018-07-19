@@ -164,7 +164,7 @@ proc create_hier_cell_wave_gen_1 { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
-  create_bd_pin -dir O -from 13 -to 0 C_DO
+  create_bd_pin -dir O -from 11 -to 0 C_DO
   create_bd_pin -dir I Clk_CI
   create_bd_pin -dir I -from 0 -to 0 Div_SI
   create_bd_pin -dir I -from 31 -to 0 NcoSet_DI
@@ -223,7 +223,7 @@ proc create_hier_cell_wave_gen_1 { parentCell nameHier } {
    }
     set_property -dict [ list \
 CONFIG.N_IN {12} \
-CONFIG.N_OUT {14} \
+CONFIG.N_OUT {12} \
 CONFIG.N_WEIGHTS {8} \
  ] $weight_sum_0
 
@@ -292,7 +292,7 @@ proc create_hier_cell_phase_det_1 { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
-  create_bd_pin -dir I -from 23 -to 0 Alpha_DI
+  create_bd_pin -dir I -from 16 -to 0 Alpha_DI
   create_bd_pin -dir I Clk_CI
   create_bd_pin -dir I -from 2 -to 0 Order_DI
   create_bd_pin -dir O PhiValid_SO
@@ -302,13 +302,13 @@ proc create_hier_cell_phase_det_1 { parentCell nameHier } {
   create_bd_pin -dir I SGN_COS
   create_bd_pin -dir I SGN_SIN
   create_bd_pin -dir O -from 15 -to 0 mix_cos
-  create_bd_pin -dir O -from 15 -to 0 mix_cos_dec
-  create_bd_pin -dir O -from 15 -to 0 mix_cos_lpf
+  create_bd_pin -dir O -from 23 -to 0 mix_cos_dec
+  create_bd_pin -dir O -from 23 -to 0 mix_cos_lpf
   create_bd_pin -dir O mix_dec_valid
   create_bd_pin -dir O mix_lpf_valid
   create_bd_pin -dir O -from 15 -to 0 mix_sin
-  create_bd_pin -dir O -from 15 -to 0 mix_sin_dec
-  create_bd_pin -dir O -from 15 -to 0 mix_sin_lpf
+  create_bd_pin -dir O -from 23 -to 0 mix_sin_dec
+  create_bd_pin -dir O -from 23 -to 0 mix_sin_lpf
 
   # Create instance: cordic_0, and set properties
   set cordic_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cordic:6.0 cordic_0 ]
@@ -316,7 +316,8 @@ proc create_hier_cell_phase_det_1 { parentCell nameHier } {
 CONFIG.Coarse_Rotation {true} \
 CONFIG.Data_Format {SignedFraction} \
 CONFIG.Functional_Selection {Arc_Tan} \
-CONFIG.Input_Width {16} \
+CONFIG.Input_Width {24} \
+CONFIG.Output_Width {16} \
 CONFIG.Phase_Format {Scaled_Radians} \
  ] $cordic_0
 
@@ -331,10 +332,11 @@ CONFIG.Phase_Format {Scaled_Radians} \
      return 1
    }
     set_property -dict [ list \
+CONFIG.CEILLOGDEC {8} \
 CONFIG.DEC {256} \
-CONFIG.DIV {256} \
+CONFIG.DIV {1} \
 CONFIG.N {16} \
-CONFIG.N_OUT {16} \
+CONFIG.N_OUT {24} \
  ] $dec_filter_0
 
   # Create instance: exp_avg_filter_order_0, and set properties
@@ -348,7 +350,8 @@ CONFIG.N_OUT {16} \
      return 1
    }
     set_property -dict [ list \
-CONFIG.N_ALPHA {24} \
+CONFIG.N {24} \
+CONFIG.N_ALPHA {17} \
  ] $exp_avg_filter_order_0
 
   # Create instance: exp_avg_filter_order_1, and set properties
@@ -362,7 +365,8 @@ CONFIG.N_ALPHA {24} \
      return 1
    }
     set_property -dict [ list \
-CONFIG.N_ALPHA {24} \
+CONFIG.N {24} \
+CONFIG.N_ALPHA {17} \
  ] $exp_avg_filter_order_1
 
   # Create instance: mult_n_1_0, and set properties
@@ -403,8 +407,8 @@ CONFIG.IN1_WIDTH {16} \
   # Create instance: xlconcat_1, and set properties
   set xlconcat_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_1 ]
   set_property -dict [ list \
-CONFIG.IN0_WIDTH {16} \
-CONFIG.IN1_WIDTH {16} \
+CONFIG.IN0_WIDTH {24} \
+CONFIG.IN1_WIDTH {24} \
  ] $xlconcat_1
 
   # Create instance: xlconstant_0, and set properties
@@ -413,16 +417,19 @@ CONFIG.IN1_WIDTH {16} \
   # Create instance: xlslice_0, and set properties
   set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
   set_property -dict [ list \
-CONFIG.DIN_FROM {15} \
-CONFIG.DOUT_WIDTH {16} \
+CONFIG.DIN_FROM {23} \
+CONFIG.DIN_TO {0} \
+CONFIG.DIN_WIDTH {48} \
+CONFIG.DOUT_WIDTH {24} \
  ] $xlslice_0
 
   # Create instance: xlslice_2, and set properties
   set xlslice_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_2 ]
   set_property -dict [ list \
-CONFIG.DIN_FROM {31} \
-CONFIG.DIN_TO {16} \
-CONFIG.DOUT_WIDTH {16} \
+CONFIG.DIN_FROM {47} \
+CONFIG.DIN_TO {24} \
+CONFIG.DIN_WIDTH {48} \
+CONFIG.DOUT_WIDTH {24} \
  ] $xlslice_2
 
   # Create port connections
@@ -489,7 +496,7 @@ proc create_hier_cell_wave_gen { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
-  create_bd_pin -dir O -from 13 -to 0 C_DO
+  create_bd_pin -dir O -from 11 -to 0 C_DO
   create_bd_pin -dir I Clk_CI
   create_bd_pin -dir I -from 0 -to 0 Div_SI
   create_bd_pin -dir I -from 31 -to 0 NcoSet_DI
@@ -548,7 +555,7 @@ proc create_hier_cell_wave_gen { parentCell nameHier } {
    }
     set_property -dict [ list \
 CONFIG.N_IN {12} \
-CONFIG.N_OUT {14} \
+CONFIG.N_OUT {12} \
 CONFIG.N_WEIGHTS {8} \
  ] $weight_sum_0
 
@@ -641,7 +648,8 @@ proc create_hier_cell_phase_det { parentCell nameHier } {
 CONFIG.Coarse_Rotation {true} \
 CONFIG.Data_Format {SignedFraction} \
 CONFIG.Functional_Selection {Arc_Tan} \
-CONFIG.Input_Width {16} \
+CONFIG.Input_Width {24} \
+CONFIG.Output_Width {16} \
 CONFIG.Phase_Format {Scaled_Radians} \
  ] $cordic_0
 
@@ -656,10 +664,11 @@ CONFIG.Phase_Format {Scaled_Radians} \
      return 1
    }
     set_property -dict [ list \
+CONFIG.CEILLOGDEC {8} \
 CONFIG.DEC {256} \
-CONFIG.DIV {256} \
+CONFIG.DIV {1} \
 CONFIG.N {16} \
-CONFIG.N_OUT {16} \
+CONFIG.N_OUT {24} \
  ] $dec_filter_0
 
   # Create instance: exp_avg_filter_order_0, and set properties
@@ -673,7 +682,8 @@ CONFIG.N_OUT {16} \
      return 1
    }
     set_property -dict [ list \
-CONFIG.N_ALPHA {24} \
+CONFIG.N {24} \
+CONFIG.N_ALPHA {17} \
  ] $exp_avg_filter_order_0
 
   # Create instance: exp_avg_filter_order_1, and set properties
@@ -687,7 +697,8 @@ CONFIG.N_ALPHA {24} \
      return 1
    }
     set_property -dict [ list \
-CONFIG.N_ALPHA {24} \
+CONFIG.N {24} \
+CONFIG.N_ALPHA {17} \
  ] $exp_avg_filter_order_1
 
   # Create instance: mult_n_1_0, and set properties
@@ -728,8 +739,8 @@ CONFIG.IN1_WIDTH {16} \
   # Create instance: xlconcat_1, and set properties
   set xlconcat_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_1 ]
   set_property -dict [ list \
-CONFIG.IN0_WIDTH {16} \
-CONFIG.IN1_WIDTH {16} \
+CONFIG.IN0_WIDTH {24} \
+CONFIG.IN1_WIDTH {24} \
  ] $xlconcat_1
 
   # Create instance: xlconstant_0, and set properties
@@ -738,16 +749,19 @@ CONFIG.IN1_WIDTH {16} \
   # Create instance: xlslice_0, and set properties
   set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
   set_property -dict [ list \
-CONFIG.DIN_FROM {15} \
-CONFIG.DOUT_WIDTH {16} \
+CONFIG.DIN_FROM {23} \
+CONFIG.DIN_TO {0} \
+CONFIG.DIN_WIDTH {48} \
+CONFIG.DOUT_WIDTH {24} \
  ] $xlslice_0
 
   # Create instance: xlslice_2, and set properties
   set xlslice_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_2 ]
   set_property -dict [ list \
-CONFIG.DIN_FROM {31} \
-CONFIG.DIN_TO {16} \
-CONFIG.DOUT_WIDTH {16} \
+CONFIG.DIN_FROM {47} \
+CONFIG.DIN_TO {24} \
+CONFIG.DIN_WIDTH {48} \
+CONFIG.DOUT_WIDTH {24} \
  ] $xlslice_2
 
   # Create port connections
@@ -918,8 +932,13 @@ proc create_hier_cell_pll2 { parentCell nameHier } {
   # Create pins
   create_bd_pin -dir I -from 15 -to 0 Ref_DI
   create_bd_pin -dir I -type rst Reset_RBI
-  create_bd_pin -dir O -from 13 -to 0 WAVE
+  create_bd_pin -dir O -from 11 -to 0 WAVE
   create_bd_pin -dir O WAVE_VALID
+  create_bd_pin -dir O -from 15 -to 0 mix_cos
+  create_bd_pin -dir O -from 23 -to 0 mix_cos_dec
+  create_bd_pin -dir O -from 23 -to 0 mix_cos_lpf
+  create_bd_pin -dir O mix_dec_valid
+  create_bd_pin -dir O mix_lpf_valid
   create_bd_pin -dir I -type clk s_axi_aclk
   create_bd_pin -dir I -type rst s_axi_aresetn
 
@@ -965,8 +984,8 @@ CONFIG.C_IS_DUAL {1} \
   set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
   set_property -dict [ list \
 CONFIG.DIN_FROM {26} \
-CONFIG.DIN_TO {3} \
-CONFIG.DOUT_WIDTH {24} \
+CONFIG.DIN_TO {10} \
+CONFIG.DOUT_WIDTH {17} \
  ] $xlslice_0
 
   # Create instance: xlslice_1, and set properties
@@ -1032,6 +1051,11 @@ CONFIG.DOUT_WIDTH {1} \
   connect_bd_net -net axi_gpio_3_gpio_io_o [get_bd_pins axi_gpio_3/gpio_io_i] [get_bd_pins axi_gpio_3/gpio_io_o] [get_bd_pins xlslice_0/Din] [get_bd_pins xlslice_1/Din]
   connect_bd_net -net phase_det_PhiValid_SO [get_bd_pins phase_det/PhiValid_SO] [get_bd_pins pid_w_range_0/Valid_SI]
   connect_bd_net -net phase_det_Phi_DO [get_bd_pins phase_det/Phi_DO] [get_bd_pins pid_w_range_0/Din_DI]
+  connect_bd_net -net phase_det_mix_cos [get_bd_pins mix_cos] [get_bd_pins phase_det/mix_cos]
+  connect_bd_net -net phase_det_mix_cos_dec [get_bd_pins mix_cos_dec] [get_bd_pins phase_det/mix_cos_dec]
+  connect_bd_net -net phase_det_mix_cos_lpf [get_bd_pins mix_cos_lpf] [get_bd_pins phase_det/mix_cos_lpf]
+  connect_bd_net -net phase_det_mix_dec_valid [get_bd_pins mix_dec_valid] [get_bd_pins phase_det/mix_dec_valid]
+  connect_bd_net -net phase_det_mix_lpf_valid [get_bd_pins mix_lpf_valid] [get_bd_pins phase_det/mix_lpf_valid]
   connect_bd_net -net pid_w_range_0_Dout_DO [get_bd_pins pid_w_range_0/Dout_DO] [get_bd_pins wave_gen/PidIn_DI]
   connect_bd_net -net pid_w_range_0_Valid_SO [get_bd_pins pid_w_range_0/Valid_SO] [get_bd_pins wave_gen/PidValid_SI]
   connect_bd_net -net s_axi_aclk_1 [get_bd_pins s_axi_aclk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_gpio_1/s_axi_aclk] [get_bd_pins axi_gpio_2/s_axi_aclk] [get_bd_pins axi_gpio_3/s_axi_aclk] [get_bd_pins phase_det/Clk_CI] [get_bd_pins pid_w_range_0/Clk_CI] [get_bd_pins wave_gen/Clk_CI]
@@ -1089,7 +1113,7 @@ proc create_hier_cell_pll1 { parentCell nameHier } {
   create_bd_pin -dir I -type rst Reset_RBI
   create_bd_pin -dir O -from 2 -to 0 SelDacA
   create_bd_pin -dir O -from 2 -to 0 SelDacB
-  create_bd_pin -dir O -from 13 -to 0 WAVE
+  create_bd_pin -dir O -from 11 -to 0 WAVE
   create_bd_pin -dir O WAVE_VALID
   create_bd_pin -dir I -type clk s_axi_aclk
   create_bd_pin -dir I -type rst s_axi_aresetn
@@ -1136,8 +1160,8 @@ CONFIG.C_IS_DUAL {1} \
   set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
   set_property -dict [ list \
 CONFIG.DIN_FROM {26} \
-CONFIG.DIN_TO {3} \
-CONFIG.DOUT_WIDTH {24} \
+CONFIG.DIN_TO {10} \
+CONFIG.DOUT_WIDTH {17} \
  ] $xlslice_0
 
   # Create instance: xlslice_1, and set properties
@@ -1558,6 +1582,20 @@ CONFIG.C_BUF_TYPE {OBUFDS} \
 CONFIG.C_SIZE {2} \
  ] $util_ds_buf_2
 
+  # Create instance: xlconcat_0, and set properties
+  set xlconcat_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_0 ]
+  set_property -dict [ list \
+CONFIG.IN0_WIDTH {2} \
+CONFIG.IN1_WIDTH {12} \
+ ] $xlconcat_0
+
+  # Create instance: xlconcat_1, and set properties
+  set xlconcat_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_1 ]
+  set_property -dict [ list \
+CONFIG.IN0_WIDTH {2} \
+CONFIG.IN1_WIDTH {12} \
+ ] $xlconcat_1
+
   # Create instance: xlconstant_0, and set properties
   set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
 
@@ -1577,6 +1615,19 @@ CONFIG.CONST_VAL {0} \
 CONFIG.CONST_WIDTH {14} \
  ] $xlconstant_3
 
+  # Create instance: xlconstant_4, and set properties
+  set xlconstant_4 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_4 ]
+  set_property -dict [ list \
+CONFIG.CONST_VAL {1} \
+ ] $xlconstant_4
+
+  # Create instance: xlconstant_5, and set properties
+  set xlconstant_5 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_5 ]
+  set_property -dict [ list \
+CONFIG.CONST_VAL {0} \
+CONFIG.CONST_WIDTH {2} \
+ ] $xlconstant_5
+
   # Create instance: xlslice_0, and set properties
   set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
   set_property -dict [ list \
@@ -1585,6 +1636,33 @@ CONFIG.DIN_TO {2} \
 CONFIG.DIN_WIDTH {16} \
 CONFIG.DOUT_WIDTH {14} \
  ] $xlslice_0
+
+  # Create instance: xlslice_1, and set properties
+  set xlslice_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_1 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $xlslice_1
+
+  # Create instance: xlslice_2, and set properties
+  set xlslice_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_2 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {23} \
+CONFIG.DIN_TO {10} \
+CONFIG.DIN_WIDTH {24} \
+CONFIG.DOUT_WIDTH {6} \
+ ] $xlslice_2
+
+  # Create instance: xlslice_3, and set properties
+  set xlslice_3 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_3 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {23} \
+CONFIG.DIN_TO {10} \
+CONFIG.DIN_WIDTH {24} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $xlslice_3
 
   # Create interface connections
   connect_bd_intf_net -intf_net S_AXI1_1 [get_bd_intf_pins pll2/S_AXI1] [get_bd_intf_pins soc/M05_AXI]
@@ -1599,6 +1677,11 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_intf_net -intf_net soc_M02_AXI [get_bd_intf_pins pll1/S_AXI2] [get_bd_intf_pins soc/M02_AXI]
 
   # Create port connections
+  connect_bd_net -net In4_DI_1 [get_bd_pins dac/In4_DI] [get_bd_pins xlslice_1/Dout]
+  connect_bd_net -net In5_DI_1 [get_bd_pins dac/In5_DI] [get_bd_pins xlslice_2/Dout]
+  connect_bd_net -net In6_DI_1 [get_bd_pins dac/In6_DI] [get_bd_pins xlslice_3/Dout]
+  connect_bd_net -net Valid5_SI_1 [get_bd_pins dac/Valid5_SI] [get_bd_pins pll2/mix_dec_valid]
+  connect_bd_net -net Valid6_SI_1 [get_bd_pins dac/Valid6_SI] [get_bd_pins pll2/mix_lpf_valid]
   connect_bd_net -net adc_adc_a [get_bd_pins adc/adc_a] [get_bd_pins pll1/Ref_DI]
   connect_bd_net -net adc_adc_b [get_bd_pins adc/adc_b] [get_bd_pins pll2/Ref_DI] [get_bd_pins xlslice_0/Din]
   connect_bd_net -net adc_adc_csn [get_bd_ports adc_csn_o] [get_bd_pins adc/adc_csn]
@@ -1616,10 +1699,15 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_net -net daisy_p_i_1 [get_bd_ports daisy_p_i] [get_bd_pins util_ds_buf_1/IBUF_DS_P]
   connect_bd_net -net pll1_SelDacA [get_bd_pins dac/SwitchDac0_SI] [get_bd_pins pll1/SelDacA]
   connect_bd_net -net pll1_SelDacB [get_bd_pins dac/SwitchDac1_SI] [get_bd_pins pll1/SelDacB]
-  connect_bd_net -net pll1_WAVE [get_bd_pins dac/In0_DI] [get_bd_pins pll1/WAVE] [get_bd_pins sum_limit_0/B_DI] [get_bd_pins sum_limit_1/A_DI]
+  connect_bd_net -net pll1_WAVE [get_bd_pins dac/In0_DI] [get_bd_pins sum_limit_0/B_DI] [get_bd_pins sum_limit_1/A_DI] [get_bd_pins xlconcat_0/dout]
+  connect_bd_net -net pll1_WAVE1 [get_bd_pins pll1/WAVE] [get_bd_pins xlconcat_0/In1]
   connect_bd_net -net pll1_WAVE_VALID [get_bd_pins dac/Valid0_SI] [get_bd_pins pll1/WAVE_VALID] [get_bd_pins sum_limit_0/ValidB_SI] [get_bd_pins sum_limit_1/ValidA_SI]
-  connect_bd_net -net pll2_WAVE [get_bd_pins dac/In1_DI] [get_bd_pins pll2/WAVE] [get_bd_pins sum_limit_0/A_DI]
+  connect_bd_net -net pll2_WAVE [get_bd_pins dac/In1_DI] [get_bd_pins sum_limit_0/A_DI] [get_bd_pins xlconcat_1/dout]
+  connect_bd_net -net pll2_WAVE1 [get_bd_pins pll2/WAVE] [get_bd_pins xlconcat_1/In1]
   connect_bd_net -net pll2_WAVE_VALID [get_bd_pins dac/Valid1_SI] [get_bd_pins pll2/WAVE_VALID] [get_bd_pins sum_limit_0/ValidA_SI]
+  connect_bd_net -net pll2_mix_cos [get_bd_pins pll2/mix_cos] [get_bd_pins xlslice_1/Din]
+  connect_bd_net -net pll2_mix_cos_dec [get_bd_pins pll2/mix_cos_dec] [get_bd_pins xlslice_2/Din]
+  connect_bd_net -net pll2_mix_cos_lpf [get_bd_pins pll2/mix_cos_lpf] [get_bd_pins xlslice_3/Din]
   connect_bd_net -net soc_peripheral_aresetn [get_bd_pins pll1/s_axi_aresetn] [get_bd_pins pll2/s_axi_aresetn] [get_bd_pins soc/peripheral_aresetn]
   connect_bd_net -net sum_limit_0_C_DO [get_bd_pins dac/In2_DI] [get_bd_pins sum_limit_0/C_DO]
   connect_bd_net -net sum_limit_0_Valid_SO [get_bd_pins dac/Valid2_SI] [get_bd_pins sum_limit_0/Valid_SO]
@@ -1630,8 +1718,10 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_net -net util_ds_buf_2_OBUF_DS_P [get_bd_ports daisy_p_o] [get_bd_pins util_ds_buf_2/OBUF_DS_P]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins dac/Reset_RBI] [get_bd_pins pll1/Reset_RBI] [get_bd_pins pll2/Reset_RBI] [get_bd_pins sum_limit_0/Reset_RBI] [get_bd_pins sum_limit_1/Reset_RBI] [get_bd_pins xlconstant_0/dout]
   connect_bd_net -net xlconstant_1_dout [get_bd_pins sum_limit_1/ValidB_SI] [get_bd_pins xlconstant_1/dout]
-  connect_bd_net -net xlconstant_2_dout [get_bd_pins dac/Valid4_SI] [get_bd_pins dac/Valid5_SI] [get_bd_pins dac/Valid6_SI] [get_bd_pins dac/Valid7_SI] [get_bd_pins xlconstant_2/dout]
-  connect_bd_net -net xlconstant_3_dout [get_bd_pins dac/In4_DI] [get_bd_pins dac/In5_DI] [get_bd_pins dac/In6_DI] [get_bd_pins dac/In7_DI] [get_bd_pins xlconstant_3/dout]
+  connect_bd_net -net xlconstant_2_dout [get_bd_pins dac/Valid7_SI] [get_bd_pins xlconstant_2/dout]
+  connect_bd_net -net xlconstant_3_dout [get_bd_pins dac/In7_DI] [get_bd_pins xlconstant_3/dout]
+  connect_bd_net -net xlconstant_4_dout [get_bd_pins dac/Valid4_SI] [get_bd_pins xlconstant_4/dout]
+  connect_bd_net -net xlconstant_5_dout [get_bd_pins xlconcat_0/In0] [get_bd_pins xlconcat_1/In0] [get_bd_pins xlconstant_5/dout]
   connect_bd_net -net xlslice_0_Dout [get_bd_pins sum_limit_1/B_DI] [get_bd_pins xlslice_0/Dout]
 
   # Create address segments
@@ -1659,4 +1749,6 @@ CONFIG.DOUT_WIDTH {14} \
 
 create_root_design ""
 
+
+common::send_msg_id "BD_TCL-1000" "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 
