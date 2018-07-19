@@ -28,7 +28,7 @@ entity clock_div_dec_filter is
     InA_DI : in std_logic_vector(N-1 downto 0);
     InB_DI : in std_logic_vector(N-1 downto 0);
 
-    Clk_CO : out std_logic;
+    Clk_CO  : out std_logic;
     OutA_DO : out std_logic_vector(N+LOG_DIV-1 downto 0);
     OutB_DO : out std_logic_vector(N+LOG_DIV-1 downto 0)
     );
@@ -39,17 +39,19 @@ architecture Behavioral of clock_div_dec_filter is
   signal ClkOut_C               : std_logic;
   signal CounterMax_S           : std_logic;
   signal Counter_SP, Counter_SN : std_logic_vector(LOG_DIV-1 downto 0);
-  signal SumA_DP, SumA_DN         : std_logic_vector(N+LOG_DIV-1 downto 0);
-  signal SumB_DP, SumB_DN         : std_logic_vector(N+LOG_DIV-1 downto 0);
+  signal SumA_DP, SumA_DN       : std_logic_vector(N+LOG_DIV-1 downto 0);
+  signal SumB_DP, SumB_DN       : std_logic_vector(N+LOG_DIV-1 downto 0);
 
   signal OutA_DP, OutA_DN : std_logic_vector(N+LOG_DIV-1 downto 0);
   signal OutB_DP, OutB_DN : std_logic_vector(N+LOG_DIV-1 downto 0);
 begin
-  OutA_DO     <= OutA_DP;
-  OutB_DO     <= OutB_DP;
   Counter_SN <= std_logic_vector((unsigned(Counter_SP) + 1) mod (2**LOG_DIV));
 
   CounterMax_S <= '1' when (unsigned(Counter_SP) = 2**LOG_DIV-1) else '0';
+
+  OutA_DO <= OutA_DP;
+  OutB_DO <= OutB_DP;
+
 
   BUFGCE_inst : BUFGCE                  -- see Xilinx UG768
     port map (
@@ -71,7 +73,7 @@ begin
     end if;
   end process;
 
-  
+
 
   process(CounterMax_S, InB_DI, OutB_DP, SumB_DP)
   begin
@@ -88,17 +90,17 @@ begin
   begin
     if rising_edge(Clk_CI) then
       if Reset_RBI = '0' then
-        SumA_DP     <= (others => '0');
-        SumB_DP     <= (others => '0');
-        OutA_DP     <= (others => '0');
-        OutB_DP     <= (others => '0');
+        SumA_DP    <= (others => '0');
+        SumB_DP    <= (others => '0');
         Counter_SP <= (others => '0');
+        OutA_DP    <= (others => '0');
+        OutB_DP    <= (others => '0');
       else
-        SumA_DP     <= SumA_DN;
-        SumB_DP     <= SumB_DN;
-        OutA_DP     <= OutA_DN;
-        OutB_DP     <= OutB_DN;
+        SumA_DP    <= SumA_DN;
+        SumB_DP    <= SumB_DN;
         Counter_SP <= Counter_SN;
+        OutA_DP    <= OutA_DN;
+        OutB_DP    <= OutB_DN;
       end if;
     end if;
   end process;
