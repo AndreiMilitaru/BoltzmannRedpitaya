@@ -17,6 +17,12 @@ if {[llength $files] > 0} {
   add_files -norecurse $files
 }
 
+set files [glob -nocomplain testbenches/*]
+if {[llength $files] > 0} {
+  puts "I am in the vhdl folder"
+  add_files -norecurse $files
+}
+
 set files2 [glob -nocomplain verilog/*]
 if {[llength $files2] > 0} {
   puts "I am in the verilog folder"
@@ -41,7 +47,7 @@ add_files -norecurse cores/axis_red_pitaya_dac_v1_0/axis_red_pitaya_dac.v
 #add constraint files
 add_files -fileset constrs_1 -norecurse {cfg/clocks.xdc cfg/ports.xdc}
 
-source scripts/create_block_design_abssqrt.tcl
+source scripts/mexican_swimmer.tcl
 
 set_property CONFIG.FREQ_HZ 31250000 [get_bd_pins /adc/axis_red_pitaya_adc_0/adc_clk]
 
