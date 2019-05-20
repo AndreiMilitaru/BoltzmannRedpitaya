@@ -6,7 +6,7 @@ import sys
 sys.path.append("C:/Users/m21/Documents/git_projects/gradient_descent")
 from function import set_ax
 
-
+"""
 with open('tb_file.tv','r') as stimuli:
     inputs = stimuli.readlines()
     
@@ -68,7 +68,6 @@ plt.tight_layout()
 fig.savefig('Z:/shared/Programming/for_Redpitaya/plots/testbench_mexican_swimmer.pdf')
 fig.savefig('Z:/shared/Programming/for_Redpitaya/plots/testbench_mexican_swimmer.png')
 plt.show()
-
 """
 with open('tb_file_sine.tv','r') as stimuli:
     inputs = stimuli.readlines()
@@ -82,4 +81,3 @@ outputs_num = [bin2dec(i[:-1], twos_complement = True) for i in outputs[:N]]
 plt.plot(np.array(inputs_num))
 plt.plot(np.array(outputs_num))
 plt.show()
-"""

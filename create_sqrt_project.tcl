@@ -8,14 +8,21 @@ create_project $project_name tmp/$project_name -part $part_name
 
 create_bd_design system
 
-
-
 # Load any additional VHDL files in the project folder
-set files [glob -nocomplain vhdl/*.vhd]
+set files [glob -nocomplain vhdl/*]
 if {[llength $files] > 0} {
   add_files -norecurse $files
 }
+
+set files [glob -nocomplain testbenches/*]
+if {[llength $files] > 0} {
+  puts "I am in the vhdl folder"
+  add_files -norecurse $files
+}
+
 update_compile_order -fileset sources_1
+
+
 
 #add ADC files
 add_files -norecurse cores/axis_red_pitaya_adc_v1_0/axis_red_pitaya_adc.vhd

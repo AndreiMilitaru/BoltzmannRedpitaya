@@ -13,14 +13,10 @@ module shift_reg #(
     
     output wire [WIDTH-1:0] out_o
     );
-    
-    reg [WIDTH-1:0] data_d, data_q;
-    
+    reg [WIDTH-1:0] data_q;
     assign out_o = data_q;
-    assign data_i = data_d;
     
     always @(posedge clk_i) begin
-        data_q <= data_q;
+        data_q <= data_i;
     end
-    
 endmodule

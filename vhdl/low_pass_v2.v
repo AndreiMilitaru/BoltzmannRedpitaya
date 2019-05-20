@@ -18,7 +18,7 @@ module low_pass_v2 #(
     output wire signed [WIDTH-1:0] data_o
     );
     
-    wire signed [WIDTH-1:0] output_exp;
+    //wire signed [WIDTH-1:0] output_exp;
     
     
     exp_filter_ve #(.WIDTH(WIDTH),                  
@@ -27,14 +27,15 @@ module low_pass_v2 #(
                          .rst_i(rst_i),
                          .data_i(data_i),
                          .alpha_i(alpha_i),
-                         .data_o(output_exp) 
+                         .data_o(data_o)
+                         //.data_o(output_exp) 
                          );
     
-    sum_filter #(.WIDTH(16)) 
-        i_sum_filter (.clk_i(clk_i),
-                      .rst_i(rst_i),
-                      .data_i(output_exp),
-                      .data_o(data_o)
-                      );
+    //sum_filter #(.WIDTH(16)) 
+        //i_sum_filter (.clk_i(clk_i),
+                      //.rst_i(rst_i),
+                      //.data_i(output_exp),
+                      //.data_o(data_o)
+                      //);
     
 endmodule
