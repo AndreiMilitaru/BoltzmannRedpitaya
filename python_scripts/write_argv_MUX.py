@@ -1,6 +1,6 @@
 '''
 @ author: Andrei Militaru
-@ date: 11th of April 2019
+@ date: 21st of May 2019
 '''
 
 import numpy as np
@@ -11,10 +11,10 @@ import sys
 User defined values:
 '''
 # number of inputs of each of the signals that need to be multiplexed
-input_bits = 16
+input_bits = int(sys.argv[1])
 
 # number of signals that need to be multiplexed
-bit_channels = 8
+bit_channels = int(sys.argv[2]) 
 
 # number of inputs necessary to select 
 bit_select = int(np.ceil(np.log(bit_channels)/np.log(2)))
