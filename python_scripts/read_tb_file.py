@@ -75,8 +75,8 @@ with open('tb_file_sine.tv','r') as stimuli:
 with open('tb_file_sine_out.tv','r') as stimuli:
     outputs = stimuli.readlines()
 N = len(inputs)
-inputs_num = [bin2dec(i[:-1], twos_complement = True) for i in inputs]
-outputs_num = [bin2dec(i[:-1], twos_complement = True) for i in outputs[:N]]
+inputs_num = [bin2dec(i[:-1], twos_complement = True) for i in inputs[100:]]
+outputs_num = [bin2dec(i[:-1], twos_complement = True) for i in outputs[100:N]]
 
 plt.plot(np.array(inputs_num))
 plt.plot(np.array(outputs_num))

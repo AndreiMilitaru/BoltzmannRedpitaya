@@ -7,7 +7,7 @@ N_stimuli = 50000
 
 fs = 125e6/4
 dt = 1/fs
-f = 500000e3
+f = 500000
 tmax = N_stimuli * dt
 
 """
