@@ -66,10 +66,8 @@ with open(path + module_name + hdl,'w') as script:
         to_script = indentation + str(bit_select) + '\'d' + str(i) + (
                     ': ' + 'data_q <= data' + str(i) + '_i;\n')
         script.write(to_script)
-    script.write('\t\t\t\tdefault: ' + 'data_d = ' + str(input_bits) + '\'d0;\n')
+    script.write('\t\t\t\tdefault: ' + 'data_q = ' + str(input_bits) + '\'d0;\n')
     script.write('\t\t\tendcase\n')
     script.write('\t\tend\n')
     script.write('\tend\n\n')
-    
-    script.write('\tend\n')
     script.write('endmodule\n')

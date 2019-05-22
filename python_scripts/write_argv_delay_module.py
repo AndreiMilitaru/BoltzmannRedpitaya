@@ -51,7 +51,7 @@ with open(path + module_name + hdl,'w') as script:
     script.write('\tinput wire [' + str(bit_select-1) + ':0] sel_i,\n')
     script.write('\tinput wire clk_i,\n')
     script.write('\tinput wire rst_i,\n')
-    script.write('\tinput wire [' + str(input_bits-1) + ':0] data_o,\n')
+    script.write('\tinput wire [' + str(input_bits-1) + ':0] data_o\n')
     script.write('\t);\n\n')
     
     # declaration of internal variables

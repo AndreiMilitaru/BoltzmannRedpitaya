@@ -43,7 +43,9 @@ with open(path + module_name + hdl,'w') as script:
     script.write('\tinput wire clk_i,\n')
     script.write('\tinput wire rst_i,\n')
     for i in range(delay_channels):
-        script.write('\toutput wire [' + str(input_bits-1) + ':0] data' + str(i) + '_o,\n')
+        script.write('\toutput wire [' + str(input_bits-1) + ':0] data' + str(i) + '_o')
+        ending = ',\n' if i != (delay_channels-1) else '\n'
+        script.write(ending)
     script.write('\t);\n\n')
     
     # declaration of internal variables

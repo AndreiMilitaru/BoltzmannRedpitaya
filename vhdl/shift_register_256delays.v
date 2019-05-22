@@ -262,7 +262,7 @@ module shift_register_256delays (
 	output wire [15:0] data252_o,
 	output wire [15:0] data253_o,
 	output wire [15:0] data254_o,
-	output wire [15:0] data255_o,
+	output wire [15:0] data255_o
 	);
 
 	reg [15:0] data0_q;

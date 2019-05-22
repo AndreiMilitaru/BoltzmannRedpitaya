@@ -530,10 +530,9 @@ module MUX_8bits (
 				8'd253: data_q <= data253_i;
 				8'd254: data_q <= data254_i;
 				8'd255: data_q <= data255_i;
-				default: data_d = 16'd0;
+				default: data_q = 16'd0;
 			endcase
 		end
 	end
 
-	end
 endmodule
