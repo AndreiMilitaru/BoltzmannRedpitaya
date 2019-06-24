@@ -40,7 +40,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 
 # The design that will be created by this Tcl script contains the following 
 # module references:
-# wire_v2, axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch
+# axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch, delay_max256clocks, delay_max256clocks, delay_max256clocks, sqrtLUT
 
 # Please add the sources of those modules before sourcing this Tcl script.
 
@@ -215,6 +215,410 @@ CONFIG.NUM_MI {6} \
   connect_bd_net -net processing_system7_0_FCLK_RESET0_N [get_bd_pins processing_system7_0/FCLK_RESET0_N] [get_bd_pins rst_ps7_0_125M/ext_reset_in]
   connect_bd_net -net rst_ps7_0_125M_peripheral_aresetn [get_bd_pins ps7_0_axi_periph/S00_ARESETN] [get_bd_pins rst_ps7_0_125M/peripheral_aresetn]
   connect_bd_net -net xlconstant_1_dout [get_bd_pins proc_sys_reset_0/ext_reset_in] [get_bd_pins xlconstant_1/dout]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: Processing
+proc create_hier_cell_Processing { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Processing() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 15 -to 0 -type data A
+  create_bd_pin -dir I -from 15 -to 0 -type data B
+  create_bd_pin -dir I -from 15 -to 0 -type data B1
+  create_bd_pin -dir I -from 15 -to 0 -type data B2
+  create_bd_pin -dir I -from 15 -to 0 -type data B3
+  create_bd_pin -dir O -from 15 -to 0 -type data S
+  create_bd_pin -dir I clk_i
+  create_bd_pin -dir O -from 15 -to 0 data_o
+  create_bd_pin -dir O -from 15 -to 0 data_o1
+  create_bd_pin -dir O -from 15 -to 0 data_o2
+  create_bd_pin -dir O -from 15 -to 0 data_o3
+  create_bd_pin -dir I rst_i
+  create_bd_pin -dir I -from 7 -to 0 sel_i
+
+  # Create instance: delayed_input, and set properties
+  set block_name delay_max256clocks
+  set block_cell_name delayed_input
+  if { [catch {set delayed_input [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $delayed_input eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
+  # Create instance: delayed_multiplicative_noise, and set properties
+  set block_name delay_max256clocks
+  set block_cell_name delayed_multiplicative_noise
+  if { [catch {set delayed_multiplicative_noise [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $delayed_multiplicative_noise eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
+  # Create instance: delayed_volatility, and set properties
+  set block_name delay_max256clocks
+  set block_cell_name delayed_volatility
+  if { [catch {set delayed_volatility [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $delayed_volatility eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
+  # Create instance: extract_bits, and set properties
+  set extract_bits [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 extract_bits ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {47} \
+CONFIG.DIN_TO {32} \
+CONFIG.DIN_WIDTH {48} \
+CONFIG.DOUT_WIDTH {1} \
+ ] $extract_bits
+
+  # Create instance: final_sum, and set properties
+  set final_sum [ create_bd_cell -type ip -vlnv xilinx.com:ip:c_addsub:12.0 final_sum ]
+  set_property -dict [ list \
+CONFIG.A_Width {48} \
+CONFIG.B_Value {0000000000000000} \
+CONFIG.B_Width {16} \
+CONFIG.CE {false} \
+CONFIG.Implementation {Fabric} \
+CONFIG.Latency {0} \
+CONFIG.Out_Width {48} \
+ ] $final_sum
+
+  # Create instance: noise_amplifier, and set properties
+  set noise_amplifier [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 noise_amplifier ]
+  set_property -dict [ list \
+CONFIG.OutputWidthHigh {47} \
+CONFIG.PipeStages {4} \
+CONFIG.PortAWidth {32} \
+CONFIG.PortBWidth {16} \
+ ] $noise_amplifier
+
+  # Create instance: shift_singularity, and set properties
+  set shift_singularity [ create_bd_cell -type ip -vlnv xilinx.com:ip:c_addsub:12.0 shift_singularity ]
+  set_property -dict [ list \
+CONFIG.A_Width {16} \
+CONFIG.B_Value {0000000000000000} \
+CONFIG.B_Width {16} \
+CONFIG.CE {false} \
+CONFIG.Implementation {Fabric} \
+CONFIG.Latency {0} \
+CONFIG.Out_Width {16} \
+ ] $shift_singularity
+
+  # Create instance: sqrtLUT_0, and set properties
+  set block_name sqrtLUT
+  set block_cell_name sqrtLUT_0
+  if { [catch {set sqrtLUT_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $sqrtLUT_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
+  # Create instance: sqrt_noise_multiplier, and set properties
+  set sqrt_noise_multiplier [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 sqrt_noise_multiplier ]
+  set_property -dict [ list \
+CONFIG.OutputWidthHigh {31} \
+CONFIG.PipeStages {4} \
+CONFIG.PortAWidth {16} \
+CONFIG.PortBWidth {16} \
+ ] $sqrt_noise_multiplier
+
+  # Create port connections
+  connect_bd_net -net B3_1 [get_bd_pins B3] [get_bd_pins final_sum/B]
+  connect_bd_net -net adc_adc_a [get_bd_pins A] [get_bd_pins delayed_input/data_i] [get_bd_pins shift_singularity/A]
+  connect_bd_net -net adc_adc_b [get_bd_pins B] [get_bd_pins sqrt_noise_multiplier/B]
+  connect_bd_net -net c_addsub_0_S [get_bd_pins S] [get_bd_pins shift_singularity/S] [get_bd_pins sqrtLUT_0/data_i]
+  connect_bd_net -net clk_1 [get_bd_pins clk_i] [get_bd_pins delayed_input/clk_i] [get_bd_pins delayed_multiplicative_noise/clk_i] [get_bd_pins delayed_volatility/clk_i] [get_bd_pins noise_amplifier/CLK] [get_bd_pins sqrtLUT_0/clk_i] [get_bd_pins sqrt_noise_multiplier/CLK]
+  connect_bd_net -net delay_max256clocks_0_data_o [get_bd_pins data_o3] [get_bd_pins delayed_multiplicative_noise/data_o]
+  connect_bd_net -net delay_max256clocks_1_data_o [get_bd_pins data_o1] [get_bd_pins delayed_volatility/data_o]
+  connect_bd_net -net delay_max256clocks_2_data_o [get_bd_pins data_o2] [get_bd_pins delayed_input/data_o]
+  connect_bd_net -net extract_bits_Dout [get_bd_pins delayed_multiplicative_noise/data_i] [get_bd_pins extract_bits/Dout]
+  connect_bd_net -net final_sum_S [get_bd_pins extract_bits/Din] [get_bd_pins final_sum/S]
+  connect_bd_net -net gain_Dout [get_bd_pins B1] [get_bd_pins noise_amplifier/B]
+  connect_bd_net -net mult_gen_0_P [get_bd_pins noise_amplifier/A] [get_bd_pins sqrt_noise_multiplier/P]
+  connect_bd_net -net noise_amplifier_P [get_bd_pins final_sum/A] [get_bd_pins noise_amplifier/P]
+  connect_bd_net -net sel_Dout [get_bd_pins sel_i] [get_bd_pins delayed_input/sel_i] [get_bd_pins delayed_multiplicative_noise/sel_i] [get_bd_pins delayed_volatility/sel_i]
+  connect_bd_net -net sqrtLUT_0_data_o [get_bd_pins data_o] [get_bd_pins delayed_volatility/data_i] [get_bd_pins sqrtLUT_0/data_o] [get_bd_pins sqrt_noise_multiplier/A]
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins delayed_input/rst_i] [get_bd_pins delayed_multiplicative_noise/rst_i] [get_bd_pins delayed_volatility/rst_i] [get_bd_pins sqrtLUT_0/rst_i]
+  connect_bd_net -net xlslice_0_Dout [get_bd_pins B2] [get_bd_pins shift_singularity/B]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: Output_formatting
+proc create_hier_cell_Output_formatting { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Output_formatting() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din
+  create_bd_pin -dir I -from 15 -to 0 Din1
+  create_bd_pin -dir I -from 15 -to 0 Din2
+  create_bd_pin -dir I -from 15 -to 0 Din3
+  create_bd_pin -dir I -from 15 -to 0 Din4
+  create_bd_pin -dir I -from 15 -to 0 Din5
+  create_bd_pin -dir I -from 15 -to 0 Din6
+  create_bd_pin -dir I -from 15 -to 0 Din7
+  create_bd_pin -dir O -from 13 -to 0 Dout
+  create_bd_pin -dir O -from 13 -to 0 Dout1
+  create_bd_pin -dir O -from 13 -to 0 Dout2
+  create_bd_pin -dir O -from 13 -to 0 Dout3
+  create_bd_pin -dir O -from 13 -to 0 Dout4
+  create_bd_pin -dir O -from 13 -to 0 Dout5
+  create_bd_pin -dir O -from 13 -to 0 Dout6
+  create_bd_pin -dir O -from 13 -to 0 Dout7
+
+  # Create instance: DC, and set properties
+  set DC [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 DC ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {13} \
+CONFIG.DIN_TO {0} \
+CONFIG.DIN_WIDTH {32} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $DC
+
+  # Create instance: delayed_input, and set properties
+  set delayed_input [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 delayed_input ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $delayed_input
+
+  # Create instance: delayed_sqrt, and set properties
+  set delayed_sqrt [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 delayed_sqrt ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $delayed_sqrt
+
+  # Create instance: final_output, and set properties
+  set final_output [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 final_output ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $final_output
+
+  # Create instance: initial_input, and set properties
+  set initial_input [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 initial_input ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $initial_input
+
+  # Create instance: initial_noise, and set properties
+  set initial_noise [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 initial_noise ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $initial_noise
+
+  # Create instance: offset_input, and set properties
+  set offset_input [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 offset_input ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $offset_input
+
+  # Create instance: sqrt_input, and set properties
+  set sqrt_input [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 sqrt_input ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DIN_TO {2} \
+CONFIG.DIN_WIDTH {16} \
+CONFIG.DOUT_WIDTH {14} \
+ ] $sqrt_input
+
+  # Create port connections
+  connect_bd_net -net DC_Dout [get_bd_pins Dout] [get_bd_pins DC/Dout]
+  connect_bd_net -net Din7_1 [get_bd_pins Din7] [get_bd_pins delayed_input/Din]
+  connect_bd_net -net GPIO_gpio_io_o3 [get_bd_pins Din] [get_bd_pins DC/Din]
+  connect_bd_net -net adc_adc_a [get_bd_pins Din6] [get_bd_pins initial_input/Din]
+  connect_bd_net -net adc_adc_b [get_bd_pins Din3] [get_bd_pins initial_noise/Din]
+  connect_bd_net -net c_addsub_0_S [get_bd_pins Din4] [get_bd_pins offset_input/Din]
+  connect_bd_net -net delay_max256clocks_0_data_o [get_bd_pins Din2] [get_bd_pins final_output/Din]
+  connect_bd_net -net delay_max256clocks_1_data_o [get_bd_pins Din5] [get_bd_pins delayed_sqrt/Din]
+  connect_bd_net -net delayed_input_Dout [get_bd_pins Dout7] [get_bd_pins delayed_input/Dout]
+  connect_bd_net -net delayed_sqrt_Dout [get_bd_pins Dout5] [get_bd_pins delayed_sqrt/Dout]
+  connect_bd_net -net final_output_Dout [get_bd_pins Dout2] [get_bd_pins final_output/Dout]
+  connect_bd_net -net initial_input_Dout [get_bd_pins Dout6] [get_bd_pins initial_input/Dout]
+  connect_bd_net -net initial_noise_Dout [get_bd_pins Dout3] [get_bd_pins initial_noise/Dout]
+  connect_bd_net -net offset_input_Dout [get_bd_pins Dout4] [get_bd_pins offset_input/Dout]
+  connect_bd_net -net sqrtLUT_0_data_o [get_bd_pins Din1] [get_bd_pins sqrt_input/Din]
+  connect_bd_net -net sqrt_input_Dout [get_bd_pins Dout1] [get_bd_pins sqrt_input/Dout]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: Control_bits
+proc create_hier_cell_Control_bits { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Control_bits() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din1
+  create_bd_pin -dir I -from 31 -to 0 Din2
+  create_bd_pin -dir O -from 15 -to 0 Dout1
+  create_bd_pin -dir O -from 15 -to 0 Dout2
+  create_bd_pin -dir O -from 7 -to 0 Dout3
+  create_bd_pin -dir O -from 15 -to 0 Dout4
+
+  # Create instance: final_offset, and set properties
+  set final_offset [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 final_offset ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {31} \
+CONFIG.DIN_TO {16} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $final_offset
+
+  # Create instance: gain, and set properties
+  set gain [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 gain ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $gain
+
+  # Create instance: offset_inside_sqrt, and set properties
+  set offset_inside_sqrt [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 offset_inside_sqrt ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {31} \
+CONFIG.DIN_TO {16} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $offset_inside_sqrt
+
+  # Create instance: sel, and set properties
+  set sel [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 sel ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {13} \
+CONFIG.DIN_TO {6} \
+CONFIG.DOUT_WIDTH {8} \
+ ] $sel
+
+  # Create port connections
+  connect_bd_net -net GPIO_gpio_io_o1 [get_bd_pins Din1] [get_bd_pins gain/Din] [get_bd_pins offset_inside_sqrt/Din]
+  connect_bd_net -net Net [get_bd_pins Din2] [get_bd_pins final_offset/Din] [get_bd_pins sel/Din]
+  connect_bd_net -net final_offset_Dout [get_bd_pins Dout4] [get_bd_pins final_offset/Dout]
+  connect_bd_net -net gain_Dout [get_bd_pins Dout1] [get_bd_pins gain/Dout]
+  connect_bd_net -net sel_Dout [get_bd_pins Dout3] [get_bd_pins sel/Dout]
+  connect_bd_net -net xlslice_0_Dout [get_bd_pins Dout2] [get_bd_pins offset_inside_sqrt/Dout]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -527,6 +931,221 @@ CONFIG.C_IS_DUAL {1} \
   current_bd_instance $oldCurInst
 }
 
+# Hierarchical cell: Data_manipulation
+proc create_hier_cell_Data_manipulation { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Data_manipulation() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 15 -to 0 -type data A
+  create_bd_pin -dir I -from 15 -to 0 -type data B
+  create_bd_pin -dir I -from 31 -to 0 Din
+  create_bd_pin -dir I -from 31 -to 0 Din1
+  create_bd_pin -dir I -from 31 -to 0 Din2
+  create_bd_pin -dir O -from 13 -to 0 Dout
+  create_bd_pin -dir O -from 13 -to 0 Dout1
+  create_bd_pin -dir O -from 13 -to 0 Dout2
+  create_bd_pin -dir O -from 13 -to 0 Dout3
+  create_bd_pin -dir O -from 13 -to 0 Dout4
+  create_bd_pin -dir O -from 13 -to 0 Dout5
+  create_bd_pin -dir O -from 13 -to 0 Dout6
+  create_bd_pin -dir O -from 13 -to 0 Dout7
+  create_bd_pin -dir O -from 7 -to 0 Dout8
+  create_bd_pin -dir I clk_i
+  create_bd_pin -dir I rst_i
+
+  # Create instance: Control_bits
+  create_hier_cell_Control_bits $hier_obj Control_bits
+
+  # Create instance: Output_formatting
+  create_hier_cell_Output_formatting $hier_obj Output_formatting
+
+  # Create instance: Processing
+  create_hier_cell_Processing $hier_obj Processing
+
+  # Create port connections
+  connect_bd_net -net DC_Dout [get_bd_pins Dout] [get_bd_pins Output_formatting/Dout]
+  connect_bd_net -net GPIO_gpio_io_o1 [get_bd_pins Din1] [get_bd_pins Control_bits/Din1]
+  connect_bd_net -net GPIO_gpio_io_o3 [get_bd_pins Din] [get_bd_pins Output_formatting/Din]
+  connect_bd_net -net In6_DI_1 [get_bd_pins Dout7] [get_bd_pins Output_formatting/Dout7]
+  connect_bd_net -net Net [get_bd_pins Din2] [get_bd_pins Control_bits/Din2]
+  connect_bd_net -net Processing_data_o2 [get_bd_pins Output_formatting/Din7] [get_bd_pins Processing/data_o2]
+  connect_bd_net -net adc_adc_a [get_bd_pins A] [get_bd_pins Output_formatting/Din6] [get_bd_pins Processing/A]
+  connect_bd_net -net adc_adc_b [get_bd_pins B] [get_bd_pins Output_formatting/Din3] [get_bd_pins Processing/B]
+  connect_bd_net -net c_addsub_0_S [get_bd_pins Output_formatting/Din4] [get_bd_pins Processing/S]
+  connect_bd_net -net clk_1 [get_bd_pins clk_i] [get_bd_pins Processing/clk_i]
+  connect_bd_net -net delay_max256clocks_0_data_o [get_bd_pins Output_formatting/Din2] [get_bd_pins Processing/data_o3]
+  connect_bd_net -net delay_max256clocks_1_data_o [get_bd_pins Output_formatting/Din5] [get_bd_pins Processing/data_o1]
+  connect_bd_net -net delayed_sqrt_Dout [get_bd_pins Dout5] [get_bd_pins Output_formatting/Dout5]
+  connect_bd_net -net final_offset_Dout [get_bd_pins Control_bits/Dout4] [get_bd_pins Processing/B3]
+  connect_bd_net -net final_output_Dout [get_bd_pins Dout2] [get_bd_pins Output_formatting/Dout2]
+  connect_bd_net -net gain_Dout [get_bd_pins Control_bits/Dout1] [get_bd_pins Processing/B1]
+  connect_bd_net -net initial_input_Dout [get_bd_pins Dout6] [get_bd_pins Output_formatting/Dout6]
+  connect_bd_net -net initial_noise_Dout [get_bd_pins Dout3] [get_bd_pins Output_formatting/Dout3]
+  connect_bd_net -net offset_input_Dout [get_bd_pins Dout4] [get_bd_pins Output_formatting/Dout4]
+  connect_bd_net -net sel_Dout [get_bd_pins Dout8] [get_bd_pins Control_bits/Dout3] [get_bd_pins Processing/sel_i]
+  connect_bd_net -net sqrtLUT_0_data_o [get_bd_pins Output_formatting/Din1] [get_bd_pins Processing/data_o]
+  connect_bd_net -net sqrt_input_Dout [get_bd_pins Dout1] [get_bd_pins Output_formatting/Dout1]
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins Processing/rst_i]
+  connect_bd_net -net xlslice_0_Dout [get_bd_pins Control_bits/Dout2] [get_bd_pins Processing/B2]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: DAC_switches
+proc create_hier_cell_DAC_switches { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_DAC_switches() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din
+  create_bd_pin -dir O -from 2 -to 0 Dout
+  create_bd_pin -dir O -from 2 -to 0 Dout1
+
+  # Create instance: DAC_switch_0, and set properties
+  set DAC_switch_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 DAC_switch_0 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {2} \
+CONFIG.DOUT_WIDTH {3} \
+ ] $DAC_switch_0
+
+  # Create instance: DAC_switch_1, and set properties
+  set DAC_switch_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 DAC_switch_1 ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {5} \
+CONFIG.DIN_TO {3} \
+CONFIG.DOUT_WIDTH {3} \
+ ] $DAC_switch_1
+
+  # Create port connections
+  connect_bd_net -net DAC_switch_0_Dout [get_bd_pins Dout] [get_bd_pins DAC_switch_0/Dout]
+  connect_bd_net -net DAC_switch_1_Dout [get_bd_pins Dout1] [get_bd_pins DAC_switch_1/Dout]
+  connect_bd_net -net Net [get_bd_pins Din] [get_bd_pins DAC_switch_0/Din] [get_bd_pins DAC_switch_1/Din]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: Constants
+proc create_hier_cell_Constants { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Constants() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir O -from 0 -to 0 dout
+  create_bd_pin -dir O -from 0 -to 0 dout1
+
+  # Create instance: xlconstant_0, and set properties
+  set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
+  set_property -dict [ list \
+CONFIG.CONST_VAL {0} \
+ ] $xlconstant_0
+
+  # Create instance: xlconstant_1, and set properties
+  set xlconstant_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_1 ]
+
+  # Create port connections
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins dout1] [get_bd_pins xlconstant_0/dout]
+  connect_bd_net -net xlconstant_1_dout [get_bd_pins dout] [get_bd_pins xlconstant_1/dout]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
 # Hierarchical cell: Buffers
 proc create_hier_cell_Buffers { parentCell nameHier } {
 
@@ -656,25 +1275,19 @@ proc create_root_design { parentCell } {
   set daisy_p_o [ create_bd_port -dir O -from 1 -to 0 daisy_p_o ]
   set exp_n_tri_io [ create_bd_port -dir O -from 7 -to 0 exp_n_tri_io ]
   set exp_p_tri_io [ create_bd_port -dir O -from 7 -to 0 exp_p_tri_io ]
-  set led_o [ create_bd_port -dir O -from 7 -to 0 led_o ]
+  set led_o [ create_bd_port -dir O -from 6 -to 0 led_o ]
 
   # Create instance: Buffers
   create_hier_cell_Buffers [current_bd_instance .] Buffers
 
-  # Create instance: DAC_switch_0, and set properties
-  set DAC_switch_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 DAC_switch_0 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {2} \
-CONFIG.DOUT_WIDTH {3} \
- ] $DAC_switch_0
+  # Create instance: Constants
+  create_hier_cell_Constants [current_bd_instance .] Constants
 
-  # Create instance: DAC_switch_1, and set properties
-  set DAC_switch_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 DAC_switch_1 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {5} \
-CONFIG.DIN_TO {3} \
-CONFIG.DOUT_WIDTH {3} \
- ] $DAC_switch_1
+  # Create instance: DAC_switches
+  create_hier_cell_DAC_switches [current_bd_instance .] DAC_switches
+
+  # Create instance: Data_manipulation
+  create_hier_cell_Data_manipulation [current_bd_instance .] Data_manipulation
 
   # Create instance: GPIO
   create_hier_cell_GPIO [current_bd_instance .] GPIO
@@ -682,133 +1295,17 @@ CONFIG.DOUT_WIDTH {3} \
   # Create instance: adc
   create_hier_cell_adc [current_bd_instance .] adc
 
-  # Create instance: cordic_0, and set properties
-  set cordic_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:cordic:6.0 cordic_0 ]
-  set_property -dict [ list \
-CONFIG.Coarse_Rotation {false} \
-CONFIG.Data_Format {UnsignedInteger} \
-CONFIG.Functional_Selection {Square_Root} \
-CONFIG.Input_Width {16} \
-CONFIG.Output_Width {9} \
- ] $cordic_0
-
   # Create instance: dac
   create_hier_cell_dac [current_bd_instance .] dac
 
-  # Create instance: mult_gen_0, and set properties
-  set mult_gen_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 mult_gen_0 ]
+  # Create instance: xlconcat_0, and set properties
+  set xlconcat_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_0 ]
   set_property -dict [ list \
-CONFIG.OutputWidthHigh {15} \
-CONFIG.PortAType {Unsigned} \
-CONFIG.PortAWidth {8} \
-CONFIG.PortBType {Unsigned} \
-CONFIG.PortBWidth {8} \
- ] $mult_gen_0
-
-  # Create instance: mult_gen_1, and set properties
-  set mult_gen_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 mult_gen_1 ]
-  set_property -dict [ list \
-CONFIG.OutputWidthHigh {31} \
-CONFIG.PipeStages {4} \
-CONFIG.PortAType {Unsigned} \
-CONFIG.PortAWidth {16} \
-CONFIG.PortBWidth {16} \
- ] $mult_gen_1
-
-  # Create instance: wire_v2_0, and set properties
-  set block_name wire_v2
-  set block_cell_name wire_v2_0
-  if { [catch {set wire_v2_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
-     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   } elseif { $wire_v2_0 eq "" } {
-     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   }
-  
-  # Create instance: xlconstant_0, and set properties
-  set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
-
-  # Create instance: xlconstant_1, and set properties
-  set xlconstant_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_1 ]
-
-  # Create instance: xlconstant_2, and set properties
-  set xlconstant_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_2 ]
-  set_property -dict [ list \
-CONFIG.CONST_VAL {64} \
-CONFIG.CONST_WIDTH {8} \
- ] $xlconstant_2
-
-  # Create instance: xlslice_0, and set properties
-  set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {13} \
-CONFIG.DIN_TO {0} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {14} \
- ] $xlslice_0
-
-  # Create instance: xlslice_1, and set properties
-  set xlslice_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_1 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {13} \
-CONFIG.DIN_TO {0} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {14} \
- ] $xlslice_1
-
-  # Create instance: xlslice_2, and set properties
-  set xlslice_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_2 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {12} \
-CONFIG.DIN_TO {5} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {8} \
- ] $xlslice_2
-
-  # Create instance: xlslice_3, and set properties
-  set xlslice_3 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_3 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {13} \
-CONFIG.DIN_TO {0} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {14} \
- ] $xlslice_3
-
-  # Create instance: xlslice_4, and set properties
-  set xlslice_4 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_4 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {13} \
-CONFIG.DIN_TO {0} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {14} \
- ] $xlslice_4
-
-  # Create instance: xlslice_5, and set properties
-  set xlslice_5 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_5 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {7} \
-CONFIG.DIN_TO {0} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {8} \
- ] $xlslice_5
-
-  # Create instance: xlslice_6, and set properties
-  set xlslice_6 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_6 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {27} \
-CONFIG.DIN_TO {14} \
-CONFIG.DOUT_WIDTH {14} \
- ] $xlslice_6
-
-  # Create instance: xlslice_7, and set properties
-  set xlslice_7 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_7 ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {13} \
-CONFIG.DIN_TO {0} \
-CONFIG.DIN_WIDTH {16} \
-CONFIG.DOUT_WIDTH {14} \
- ] $xlslice_7
+CONFIG.IN0_WIDTH {3} \
+CONFIG.IN1_WIDTH {3} \
+CONFIG.IN2_WIDTH {1} \
+CONFIG.NUM_PORTS {3} \
+ ] $xlconcat_0
 
   # Create interface connections
   connect_bd_intf_net -intf_net GPIO_GPIO [get_bd_intf_ports gpio_rtl] [get_bd_intf_pins GPIO/GPIO]
@@ -817,23 +1314,22 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_intf_net -intf_net soc_FIXED_IO [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins GPIO/FIXED_IO]
 
   # Create port connections
-  connect_bd_net -net DAC_switch_0_Dout [get_bd_pins DAC_switch_0/Dout] [get_bd_pins dac/SwitchDac0_SI]
-  connect_bd_net -net DAC_switch_1_Dout [get_bd_pins DAC_switch_1/Dout] [get_bd_pins dac/SwitchDac1_SI]
-  connect_bd_net -net In0_DI_1 [get_bd_pins dac/In0_DI] [get_bd_pins xlslice_1/Dout]
-  connect_bd_net -net In1_DI_1 [get_bd_pins dac/In1_DI] [get_bd_pins xlslice_0/Dout]
-  connect_bd_net -net In2_DI_1 [get_bd_pins dac/In2_DI] [get_bd_pins xlslice_3/Dout]
-  connect_bd_net -net In3_DI_1 [get_bd_pins dac/In3_DI] [get_bd_pins xlslice_4/Dout]
-  connect_bd_net -net In4_DI_1 [get_bd_pins dac/In4_DI] [get_bd_pins xlslice_6/Dout]
-  connect_bd_net -net Net [get_bd_pins DAC_switch_0/Din] [get_bd_pins DAC_switch_1/Din] [get_bd_pins GPIO/gpio_io_o]
-  connect_bd_net -net adc_adc_a [get_bd_pins adc/adc_a] [get_bd_pins wire_v2_0/adc_data_i] [get_bd_pins xlslice_1/Din]
-  connect_bd_net -net adc_adc_b [get_bd_pins adc/adc_b] [get_bd_pins mult_gen_1/B] [get_bd_pins xlslice_7/Din]
+  connect_bd_net -net Constants_dout1 [get_bd_pins Constants/dout1] [get_bd_pins Data_manipulation/rst_i] [get_bd_pins xlconcat_0/In2]
+  connect_bd_net -net DAC_switch_0_Dout [get_bd_pins DAC_switches/Dout] [get_bd_pins dac/SwitchDac0_SI] [get_bd_pins xlconcat_0/In0]
+  connect_bd_net -net DAC_switch_1_Dout [get_bd_pins DAC_switches/Dout1] [get_bd_pins dac/SwitchDac1_SI] [get_bd_pins xlconcat_0/In1]
+  connect_bd_net -net DC_Dout [get_bd_pins Data_manipulation/Dout] [get_bd_pins dac/In7_DI]
+  connect_bd_net -net GPIO_gpio_io_o1 [get_bd_pins Data_manipulation/Din1] [get_bd_pins GPIO/gpio_io_o1]
+  connect_bd_net -net GPIO_gpio_io_o3 [get_bd_pins Data_manipulation/Din] [get_bd_pins GPIO/gpio_io_o3]
+  connect_bd_net -net In6_DI_1 [get_bd_pins Data_manipulation/Dout7] [get_bd_pins dac/In6_DI]
+  connect_bd_net -net Net [get_bd_pins DAC_switches/Din] [get_bd_pins Data_manipulation/Din2] [get_bd_pins GPIO/gpio_io_o]
+  connect_bd_net -net adc_adc_a [get_bd_pins Data_manipulation/A] [get_bd_pins adc/adc_a]
+  connect_bd_net -net adc_adc_b [get_bd_pins Data_manipulation/B] [get_bd_pins adc/adc_b]
   connect_bd_net -net adc_adc_csn [get_bd_ports adc_csn_o] [get_bd_pins adc/adc_csn]
   connect_bd_net -net adc_clk_n_i_1 [get_bd_ports adc_clk_n_i] [get_bd_pins adc/adc_clk_n]
   connect_bd_net -net adc_clk_p_i_1 [get_bd_ports adc_clk_p_i] [get_bd_pins adc/adc_clk_p]
   connect_bd_net -net adc_dat_a_i_1 [get_bd_ports adc_dat_a_i] [get_bd_pins adc/adc_dat_a]
   connect_bd_net -net adc_dat_b_i_1 [get_bd_ports adc_dat_b_i] [get_bd_pins adc/adc_dat_b]
-  connect_bd_net -net clk_1 [get_bd_pins GPIO/s_axi_aclk] [get_bd_pins adc/adc_clk] [get_bd_pins cordic_0/aclk] [get_bd_pins dac/Clk_CI] [get_bd_pins mult_gen_0/CLK] [get_bd_pins mult_gen_1/CLK]
-  connect_bd_net -net cordic_0_m_axis_dout_tdata [get_bd_pins cordic_0/m_axis_dout_tdata] [get_bd_pins xlslice_5/Din]
+  connect_bd_net -net clk_1 [get_bd_pins Data_manipulation/clk_i] [get_bd_pins GPIO/s_axi_aclk] [get_bd_pins adc/adc_clk] [get_bd_pins dac/Clk_CI]
   connect_bd_net -net dac_dac_clk [get_bd_ports dac_clk_o] [get_bd_pins dac/dac_clk]
   connect_bd_net -net dac_dac_dat [get_bd_ports dac_dat_o] [get_bd_pins dac/dac_dat]
   connect_bd_net -net dac_dac_rst [get_bd_ports dac_rst_o] [get_bd_pins dac/dac_rst]
@@ -841,17 +1337,16 @@ CONFIG.DOUT_WIDTH {14} \
   connect_bd_net -net dac_dac_wrt [get_bd_ports dac_wrt_o] [get_bd_pins dac/dac_wrt]
   connect_bd_net -net daisy_n_i_1 [get_bd_ports daisy_n_i] [get_bd_pins Buffers/IBUF_DS_N]
   connect_bd_net -net daisy_p_i_1 [get_bd_ports daisy_p_i] [get_bd_pins Buffers/IBUF_DS_P]
-  connect_bd_net -net mult_gen_0_P [get_bd_pins mult_gen_0/P] [get_bd_pins mult_gen_1/A] [get_bd_pins xlslice_0/Din]
-  connect_bd_net -net mult_gen_1_P [get_bd_pins mult_gen_1/P] [get_bd_pins xlslice_6/Din]
+  connect_bd_net -net delayed_sqrt_Dout [get_bd_pins Data_manipulation/Dout5] [get_bd_pins dac/In5_DI]
+  connect_bd_net -net final_output_Dout [get_bd_pins Data_manipulation/Dout2] [get_bd_pins dac/In1_DI]
+  connect_bd_net -net initial_input_Dout [get_bd_pins Data_manipulation/Dout6] [get_bd_pins dac/In0_DI]
+  connect_bd_net -net initial_noise_Dout [get_bd_pins Data_manipulation/Dout3] [get_bd_pins dac/In2_DI]
+  connect_bd_net -net offset_input_Dout [get_bd_pins Data_manipulation/Dout4] [get_bd_pins dac/In3_DI]
+  connect_bd_net -net sqrt_input_Dout [get_bd_pins Data_manipulation/Dout1] [get_bd_pins dac/In4_DI]
   connect_bd_net -net util_ds_buf_2_OBUF_DS_N [get_bd_ports daisy_n_o] [get_bd_pins Buffers/OBUF_DS_N]
   connect_bd_net -net util_ds_buf_2_OBUF_DS_P [get_bd_ports daisy_p_o] [get_bd_pins Buffers/OBUF_DS_P]
-  connect_bd_net -net wire_v2_0_adc_data_o [get_bd_pins cordic_0/s_axis_cartesian_tdata] [get_bd_pins wire_v2_0/adc_data_o] [get_bd_pins xlslice_3/Din] [get_bd_pins xlslice_4/Din]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins dac/Reset_RBI] [get_bd_pins xlconstant_0/dout]
-  connect_bd_net -net xlconstant_1_dout [get_bd_pins cordic_0/s_axis_cartesian_tvalid] [get_bd_pins dac/Valid0_SI] [get_bd_pins dac/Valid1_SI] [get_bd_pins dac/Valid2_SI] [get_bd_pins dac/Valid3_SI] [get_bd_pins dac/Valid4_SI] [get_bd_pins dac/Valid5_SI] [get_bd_pins dac/Valid6_SI] [get_bd_pins dac/Valid7_SI] [get_bd_pins xlconstant_1/dout]
-  connect_bd_net -net xlconstant_2_dout [get_bd_pins mult_gen_0/B] [get_bd_pins xlconstant_2/dout]
-  connect_bd_net -net xlslice_2_Dout1 [get_bd_ports led_o] [get_bd_pins xlslice_2/Dout]
-  connect_bd_net -net xlslice_5_Dout1 [get_bd_pins mult_gen_0/A] [get_bd_pins xlslice_5/Dout]
-  connect_bd_net -net xlslice_7_Dout [get_bd_pins dac/In5_DI] [get_bd_pins xlslice_7/Dout]
+  connect_bd_net -net xlconcat_0_dout [get_bd_ports led_o] [get_bd_pins xlconcat_0/dout]
+  connect_bd_net -net xlconstant_1_dout [get_bd_pins Constants/dout] [get_bd_pins dac/Reset_RBI] [get_bd_pins dac/Valid0_SI] [get_bd_pins dac/Valid1_SI] [get_bd_pins dac/Valid2_SI] [get_bd_pins dac/Valid3_SI] [get_bd_pins dac/Valid4_SI] [get_bd_pins dac/Valid5_SI] [get_bd_pins dac/Valid6_SI] [get_bd_pins dac/Valid7_SI]
 
   # Create address segments
   create_bd_addr_seg -range 0x00010000 -offset 0x41200000 [get_bd_addr_spaces GPIO/soc/processing_system7_0/Data] [get_bd_addr_segs GPIO/axi_gpio_0/S_AXI/Reg] SEG_axi_gpio_0_Reg
@@ -874,6 +1369,4 @@ CONFIG.DOUT_WIDTH {14} \
 
 create_root_design ""
 
-
-common::send_msg_id "BD_TCL-1000" "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 

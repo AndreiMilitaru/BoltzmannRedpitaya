@@ -50,10 +50,7 @@ def dec2bin(x,
                                                                       width = width,
                                                                       base = base,
                                                                       twos_complement = False)
-        
     return out
-    
-    
     
 def bin2dec(x,
             base = 2,
@@ -66,6 +63,4 @@ def bin2dec(x,
         out += base**i * int(x[width - 1 - i])
         
     out += base**(width-1) * int(x[0]) if not twos_complement else (-base**(width-1) * int(x[0]))
-    
     return out
-            

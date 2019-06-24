@@ -9,7 +9,7 @@ module delay_max256clocks (
 	input wire [7:0] sel_i,
 	input wire clk_i,
 	input wire rst_i,
-	input wire [15:0] data_o
+	output wire [15:0] data_o
 	);
 
 	wire [15:0] data0;
