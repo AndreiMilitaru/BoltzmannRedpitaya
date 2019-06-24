@@ -40,7 +40,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 
 # The design that will be created by this Tcl script contains the following 
 # module references:
-# axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch, delay_max256clocks, delay_max256clocks, delay_max256clocks, sqrtLUT
+# axis_red_pitaya_adc, input_extractor, axis_red_pitaya_dac, dac_out_switch, delay_wrapper, delay_max256clocks, delay_max256clocks, offset_rescaler, sqrtLUT
 
 # Please add the sources of those modules before sourcing this Tcl script.
 
@@ -271,6 +271,17 @@ proc create_hier_cell_Processing { parentCell nameHier } {
   create_bd_pin -dir I rst_i
   create_bd_pin -dir I -from 7 -to 0 sel_i
 
+  # Create instance: delay_wrapper_0, and set properties
+  set block_name delay_wrapper
+  set block_cell_name delay_wrapper_0
+  if { [catch {set delay_wrapper_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $delay_wrapper_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
   # Create instance: delayed_input, and set properties
   set block_name delay_max256clocks
   set block_cell_name delayed_input
@@ -278,17 +289,6 @@ proc create_hier_cell_Processing { parentCell nameHier } {
      catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    } elseif { $delayed_input eq "" } {
-     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   }
-  
-  # Create instance: delayed_multiplicative_noise, and set properties
-  set block_name delay_max256clocks
-  set block_cell_name delayed_multiplicative_noise
-  if { [catch {set delayed_multiplicative_noise [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
-     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   } elseif { $delayed_multiplicative_noise eq "" } {
      catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
@@ -307,33 +307,51 @@ proc create_hier_cell_Processing { parentCell nameHier } {
   # Create instance: extract_bits, and set properties
   set extract_bits [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 extract_bits ]
   set_property -dict [ list \
-CONFIG.DIN_FROM {47} \
-CONFIG.DIN_TO {32} \
-CONFIG.DIN_WIDTH {48} \
-CONFIG.DOUT_WIDTH {1} \
+CONFIG.DIN_FROM {31} \
+CONFIG.DIN_TO {16} \
+CONFIG.DIN_WIDTH {32} \
+CONFIG.DOUT_WIDTH {16} \
  ] $extract_bits
 
   # Create instance: final_sum, and set properties
   set final_sum [ create_bd_cell -type ip -vlnv xilinx.com:ip:c_addsub:12.0 final_sum ]
   set_property -dict [ list \
-CONFIG.A_Width {48} \
-CONFIG.B_Value {0000000000000000} \
-CONFIG.B_Width {16} \
+CONFIG.A_Width {32} \
+CONFIG.B_Value {00000000000000000000000000000000} \
+CONFIG.B_Width {32} \
 CONFIG.CE {false} \
 CONFIG.Implementation {Fabric} \
 CONFIG.Latency {0} \
-CONFIG.Out_Width {48} \
+CONFIG.Out_Width {32} \
  ] $final_sum
+
+  # Create instance: noise_adjuster, and set properties
+  set noise_adjuster [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 noise_adjuster ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $noise_adjuster
 
   # Create instance: noise_amplifier, and set properties
   set noise_amplifier [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 noise_amplifier ]
   set_property -dict [ list \
-CONFIG.OutputWidthHigh {47} \
-CONFIG.PipeStages {4} \
-CONFIG.PortAWidth {32} \
+CONFIG.OutputWidthHigh {31} \
+CONFIG.PipeStages {0} \
+CONFIG.PortAWidth {16} \
 CONFIG.PortBWidth {16} \
  ] $noise_amplifier
 
+  # Create instance: offset_rescaler_0, and set properties
+  set block_name offset_rescaler
+  set block_cell_name offset_rescaler_0
+  if { [catch {set offset_rescaler_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $offset_rescaler_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
   # Create instance: shift_singularity, and set properties
   set shift_singularity [ create_bd_cell -type ip -vlnv xilinx.com:ip:c_addsub:12.0 shift_singularity ]
   set_property -dict [ list \
@@ -357,33 +375,35 @@ CONFIG.Out_Width {16} \
      return 1
    }
   
-  # Create instance: sqrt_noise_multiplier, and set properties
-  set sqrt_noise_multiplier [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 sqrt_noise_multiplier ]
+  # Create instance: sqrt_noise_multiplier_1, and set properties
+  set sqrt_noise_multiplier_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 sqrt_noise_multiplier_1 ]
   set_property -dict [ list \
 CONFIG.OutputWidthHigh {31} \
 CONFIG.PipeStages {4} \
 CONFIG.PortAWidth {16} \
 CONFIG.PortBWidth {16} \
- ] $sqrt_noise_multiplier
+ ] $sqrt_noise_multiplier_1
 
   # Create port connections
-  connect_bd_net -net B3_1 [get_bd_pins B3] [get_bd_pins final_sum/B]
+  connect_bd_net -net B1_1 [get_bd_pins B1] [get_bd_pins sqrt_noise_multiplier_1/A]
+  connect_bd_net -net B3_1 [get_bd_pins B3] [get_bd_pins offset_rescaler_0/data_i]
   connect_bd_net -net adc_adc_a [get_bd_pins A] [get_bd_pins delayed_input/data_i] [get_bd_pins shift_singularity/A]
-  connect_bd_net -net adc_adc_b [get_bd_pins B] [get_bd_pins sqrt_noise_multiplier/B]
+  connect_bd_net -net adc_adc_b [get_bd_pins B] [get_bd_pins sqrt_noise_multiplier_1/B]
   connect_bd_net -net c_addsub_0_S [get_bd_pins S] [get_bd_pins shift_singularity/S] [get_bd_pins sqrtLUT_0/data_i]
-  connect_bd_net -net clk_1 [get_bd_pins clk_i] [get_bd_pins delayed_input/clk_i] [get_bd_pins delayed_multiplicative_noise/clk_i] [get_bd_pins delayed_volatility/clk_i] [get_bd_pins noise_amplifier/CLK] [get_bd_pins sqrtLUT_0/clk_i] [get_bd_pins sqrt_noise_multiplier/CLK]
-  connect_bd_net -net delay_max256clocks_0_data_o [get_bd_pins data_o3] [get_bd_pins delayed_multiplicative_noise/data_o]
+  connect_bd_net -net clk_1 [get_bd_pins clk_i] [get_bd_pins delay_wrapper_0/clk_i] [get_bd_pins delayed_input/clk_i] [get_bd_pins delayed_volatility/clk_i] [get_bd_pins sqrtLUT_0/clk_i] [get_bd_pins sqrt_noise_multiplier_1/CLK]
   connect_bd_net -net delay_max256clocks_1_data_o [get_bd_pins data_o1] [get_bd_pins delayed_volatility/data_o]
   connect_bd_net -net delay_max256clocks_2_data_o [get_bd_pins data_o2] [get_bd_pins delayed_input/data_o]
-  connect_bd_net -net extract_bits_Dout [get_bd_pins delayed_multiplicative_noise/data_i] [get_bd_pins extract_bits/Dout]
+  connect_bd_net -net delay_wrapper_0_data_o [get_bd_pins data_o3] [get_bd_pins delay_wrapper_0/data_o]
+  connect_bd_net -net extract_bits_Dout [get_bd_pins delay_wrapper_0/data_i] [get_bd_pins extract_bits/Dout]
   connect_bd_net -net final_sum_S [get_bd_pins extract_bits/Din] [get_bd_pins final_sum/S]
-  connect_bd_net -net gain_Dout [get_bd_pins B1] [get_bd_pins noise_amplifier/B]
-  connect_bd_net -net mult_gen_0_P [get_bd_pins noise_amplifier/A] [get_bd_pins sqrt_noise_multiplier/P]
   connect_bd_net -net noise_amplifier_P [get_bd_pins final_sum/A] [get_bd_pins noise_amplifier/P]
-  connect_bd_net -net sel_Dout [get_bd_pins sel_i] [get_bd_pins delayed_input/sel_i] [get_bd_pins delayed_multiplicative_noise/sel_i] [get_bd_pins delayed_volatility/sel_i]
-  connect_bd_net -net sqrtLUT_0_data_o [get_bd_pins data_o] [get_bd_pins delayed_volatility/data_i] [get_bd_pins sqrtLUT_0/data_o] [get_bd_pins sqrt_noise_multiplier/A]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins delayed_input/rst_i] [get_bd_pins delayed_multiplicative_noise/rst_i] [get_bd_pins delayed_volatility/rst_i] [get_bd_pins sqrtLUT_0/rst_i]
+  connect_bd_net -net offset_rescaler_0_data_o [get_bd_pins final_sum/B] [get_bd_pins offset_rescaler_0/data_o]
+  connect_bd_net -net sel_i_1 [get_bd_pins sel_i] [get_bd_pins delay_wrapper_0/sel_i] [get_bd_pins delayed_input/sel_i] [get_bd_pins delayed_volatility/sel_i]
+  connect_bd_net -net sqrtLUT_0_data_o [get_bd_pins data_o] [get_bd_pins delayed_volatility/data_i] [get_bd_pins noise_amplifier/B] [get_bd_pins sqrtLUT_0/data_o]
+  connect_bd_net -net sqrt_noise_multiplier_1_P [get_bd_pins noise_adjuster/Din] [get_bd_pins sqrt_noise_multiplier_1/P]
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins delay_wrapper_0/rst_i] [get_bd_pins delayed_input/rst_i] [get_bd_pins delayed_volatility/rst_i] [get_bd_pins sqrtLUT_0/rst_i]
   connect_bd_net -net xlslice_0_Dout [get_bd_pins B2] [get_bd_pins shift_singularity/B]
+  connect_bd_net -net xlslice_0_Dout1 [get_bd_pins noise_adjuster/Dout] [get_bd_pins noise_amplifier/A]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -806,46 +826,38 @@ proc create_hier_cell_adc { parentCell nameHier } {
   create_bd_pin -dir I -from 13 -to 0 adc_dat_a
   create_bd_pin -dir I -from 13 -to 0 adc_dat_b
 
-  # Create instance: adc_a, and set properties
-  set adc_a [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 adc_a ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {15} \
-CONFIG.DOUT_WIDTH {16} \
- ] $adc_a
-
-  # Create instance: adc_b, and set properties
-  set adc_b [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 adc_b ]
-  set_property -dict [ list \
-CONFIG.DIN_FROM {31} \
-CONFIG.DIN_TO {16} \
-CONFIG.DOUT_WIDTH {16} \
- ] $adc_b
-
-  # Create instance: axis_red_pitaya_adc_0, and set properties
-  set block_name axis_red_pitaya_adc
-  set block_cell_name axis_red_pitaya_adc_0
-  if { [catch {set axis_red_pitaya_adc_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+  # Create instance: axis_red_pitaya_adc_verilog, and set properties
+  set block_name axis_red_pitaya_adc_verilog
+  set block_cell_name axis_red_pitaya_adc_verilog0
+  if { [catch {set axis_red_pitaya_adc_verilog0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
      catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
-   } elseif { $axis_red_pitaya_adc_0 eq "" } {
+   } elseif { $axis_red_pitaya_adc_verilog0 eq "" } {
      catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
      return 1
    }
   
-  set_property -dict [ list \
-CONFIG.TDATA_NUM_BYTES {4} \
- ] [get_bd_intf_pins /adc/axis_red_pitaya_adc_0/m_axis]
-
+  # Create instance: input_extractor_0, and set properties
+  set block_name input_extractor
+  set block_cell_name input_extractor_0
+  if { [catch {set input_extractor_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $input_extractor_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
   # Create port connections
-  connect_bd_net -net adc_a_Dout [get_bd_pins adc_a] [get_bd_pins adc_a/Dout]
-  connect_bd_net -net adc_b_Dout [get_bd_pins adc_b] [get_bd_pins adc_b/Dout]
-  connect_bd_net -net adc_clk_n_1 [get_bd_pins adc_clk_n] [get_bd_pins axis_red_pitaya_adc_0/adc_clk_n]
-  connect_bd_net -net adc_clk_p_1 [get_bd_pins adc_clk_p] [get_bd_pins axis_red_pitaya_adc_0/adc_clk_p]
-  connect_bd_net -net adc_dat_a_1 [get_bd_pins adc_dat_a] [get_bd_pins axis_red_pitaya_adc_0/adc_dat_a]
-  connect_bd_net -net adc_dat_b_1 [get_bd_pins adc_dat_b] [get_bd_pins axis_red_pitaya_adc_0/adc_dat_b]
-  connect_bd_net -net axis_red_pitaya_adc_0_adc_clk [get_bd_pins adc_clk] [get_bd_pins axis_red_pitaya_adc_0/adc_clk]
-  connect_bd_net -net axis_red_pitaya_adc_0_adc_csn [get_bd_pins adc_csn] [get_bd_pins axis_red_pitaya_adc_0/adc_csn]
-  connect_bd_net -net axis_red_pitaya_adc_0_m_axis_tdata [get_bd_pins adc_a/Din] [get_bd_pins adc_b/Din] [get_bd_pins axis_red_pitaya_adc_0/m_axis_tdata]
+  connect_bd_net -net adc_clk_n_1 [get_bd_pins adc_clk_n] [get_bd_pins axis_red_pitaya_adc_verilog0/adc_clk_n]
+  connect_bd_net -net adc_clk_p_1 [get_bd_pins adc_clk_p] [get_bd_pins axis_red_pitaya_adc_verilog0/adc_clk_p]
+  connect_bd_net -net adc_dat_a_1 [get_bd_pins adc_dat_a] [get_bd_pins axis_red_pitaya_adc_verilog0/adc_dat_a]
+  connect_bd_net -net adc_dat_b_1 [get_bd_pins adc_dat_b] [get_bd_pins axis_red_pitaya_adc_verilog0/adc_dat_b]
+  connect_bd_net -net axis_red_pitaya_adc_0_adc_clk [get_bd_pins adc_clk] [get_bd_pins axis_red_pitaya_adc_verilog0/adc_clk]
+  connect_bd_net -net axis_red_pitaya_adc_0_adc_csn [get_bd_pins adc_csn] [get_bd_pins axis_red_pitaya_adc_verilog0/adc_csn]
+  connect_bd_net -net axis_red_pitaya_adc_0_m_axis_tdata [get_bd_pins axis_red_pitaya_adc_verilog0/m_axis_tdata] [get_bd_pins input_extractor_0/bundle_i]
+  connect_bd_net -net input_extractor_0_adcA_o [get_bd_pins adc_a] [get_bd_pins input_extractor_0/adcA_o]
+  connect_bd_net -net input_extractor_0_adcB_o [get_bd_pins adc_b] [get_bd_pins input_extractor_0/adcB_o]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -1392,3 +1404,4 @@ create_root_design ""
 
 common::send_msg_id "BD_TCL-1000" "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 
+set_property -dict [list CONFIG.FREQ_HZ {125000000}] [get_bd_pins adc/axis_red_pitaya_adc_verilog0/adc_clk]

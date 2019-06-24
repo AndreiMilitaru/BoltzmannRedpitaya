@@ -2,7 +2,7 @@
 
 `timescale 1 ns / 1 ps
 
-module axis_red_pitaya_adc #
+module axis_red_pitaya_adc_verilog #
 (
   parameter integer ADC_DATA_WIDTH = 14,
   parameter integer AXIS_TDATA_WIDTH = 32
