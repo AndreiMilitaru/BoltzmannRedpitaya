@@ -1,0 +1,15 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Author: Andrei Militaru
+// date: 24th of June 2019
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module offset_rescaler(
+    input wire [15:0] data_i,
+    output wire [31:0] data_o
+    );
+    
+    assign data_o = {{16{data_i[15]}}, data_i} <<< 16;
+    
+endmodule
