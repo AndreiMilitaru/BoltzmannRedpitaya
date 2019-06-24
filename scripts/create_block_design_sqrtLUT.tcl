@@ -701,16 +701,16 @@ proc create_hier_cell_dac { parentCell nameHier } {
   # Create instance: clk_wiz_0, and set properties
   set clk_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:5.4 clk_wiz_0 ]
   set_property -dict [ list \
-CONFIG.CLKIN1_JITTER_PS {320.0} \
-CONFIG.CLKOUT1_JITTER {175.817} \
-CONFIG.CLKOUT1_PHASE_ERROR {204.239} \
+CONFIG.CLKIN1_JITTER_PS {80.0} \
+CONFIG.CLKOUT1_JITTER {104.759} \
+CONFIG.CLKOUT1_PHASE_ERROR {96.948} \
 CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250.000} \
-CONFIG.MMCM_CLKFBOUT_MULT_F {32.000} \
-CONFIG.MMCM_CLKIN1_PERIOD {32.000} \
-CONFIG.MMCM_CLKIN2_PERIOD {10.0} \
+CONFIG.MMCM_CLKFBOUT_MULT_F {8.000} \
+CONFIG.MMCM_CLKIN1_PERIOD {8.000} \
+CONFIG.MMCM_CLKIN2_PERIOD {10.000} \
 CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.000} \
 CONFIG.MMCM_DIVCLK_DIVIDE {1} \
-CONFIG.PRIM_IN_FREQ {31.25} \
+CONFIG.PRIM_IN_FREQ {125} \
 CONFIG.USE_RESET {false} \
  ] $clk_wiz_0
 
@@ -806,6 +806,21 @@ proc create_hier_cell_adc { parentCell nameHier } {
   create_bd_pin -dir I -from 13 -to 0 adc_dat_a
   create_bd_pin -dir I -from 13 -to 0 adc_dat_b
 
+  # Create instance: adc_a, and set properties
+  set adc_a [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 adc_a ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {15} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $adc_a
+
+  # Create instance: adc_b, and set properties
+  set adc_b [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 adc_b ]
+  set_property -dict [ list \
+CONFIG.DIN_FROM {31} \
+CONFIG.DIN_TO {16} \
+CONFIG.DOUT_WIDTH {16} \
+ ] $adc_b
+
   # Create instance: axis_red_pitaya_adc_0, and set properties
   set block_name axis_red_pitaya_adc
   set block_cell_name axis_red_pitaya_adc_0
@@ -817,15 +832,20 @@ proc create_hier_cell_adc { parentCell nameHier } {
      return 1
    }
   
+  set_property -dict [ list \
+CONFIG.TDATA_NUM_BYTES {4} \
+ ] [get_bd_intf_pins /adc/axis_red_pitaya_adc_0/m_axis]
+
   # Create port connections
+  connect_bd_net -net adc_a_Dout [get_bd_pins adc_a] [get_bd_pins adc_a/Dout]
+  connect_bd_net -net adc_b_Dout [get_bd_pins adc_b] [get_bd_pins adc_b/Dout]
   connect_bd_net -net adc_clk_n_1 [get_bd_pins adc_clk_n] [get_bd_pins axis_red_pitaya_adc_0/adc_clk_n]
   connect_bd_net -net adc_clk_p_1 [get_bd_pins adc_clk_p] [get_bd_pins axis_red_pitaya_adc_0/adc_clk_p]
   connect_bd_net -net adc_dat_a_1 [get_bd_pins adc_dat_a] [get_bd_pins axis_red_pitaya_adc_0/adc_dat_a]
   connect_bd_net -net adc_dat_b_1 [get_bd_pins adc_dat_b] [get_bd_pins axis_red_pitaya_adc_0/adc_dat_b]
-  connect_bd_net -net axis_red_pitaya_adc_0_adc_a [get_bd_pins adc_a] [get_bd_pins axis_red_pitaya_adc_0/adc_a]
-  connect_bd_net -net axis_red_pitaya_adc_0_adc_b [get_bd_pins adc_b] [get_bd_pins axis_red_pitaya_adc_0/adc_b]
   connect_bd_net -net axis_red_pitaya_adc_0_adc_clk [get_bd_pins adc_clk] [get_bd_pins axis_red_pitaya_adc_0/adc_clk]
   connect_bd_net -net axis_red_pitaya_adc_0_adc_csn [get_bd_pins adc_csn] [get_bd_pins axis_red_pitaya_adc_0/adc_csn]
+  connect_bd_net -net axis_red_pitaya_adc_0_m_axis_tdata [get_bd_pins adc_a/Din] [get_bd_pins adc_b/Din] [get_bd_pins axis_red_pitaya_adc_0/m_axis_tdata]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -1369,4 +1389,6 @@ CONFIG.NUM_PORTS {3} \
 
 create_root_design ""
 
+
+common::send_msg_id "BD_TCL-1000" "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 
