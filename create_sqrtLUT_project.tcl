@@ -36,7 +36,7 @@ add_files -fileset constrs_1 -norecurse {cfg/clocks.xdc cfg/ports.xdc}
 
 source scripts/create_block_design_sqrtLUT.tcl
 
-set_property CONFIG.FREQ_HZ 31250000 [get_bd_pins /adc/axis_red_pitaya_adc_0/adc_clk]
+#set_property CONFIG.FREQ_HZ 31250000 [get_bd_pins /adc/axis_red_pitaya_adc_0/adc_clk]
 
 regenerate_bd_layout
 
