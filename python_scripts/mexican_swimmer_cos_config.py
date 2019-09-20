@@ -15,7 +15,6 @@ if sys.argv[1] == 'help':
     print('- 2 --> unwrapped Wiener process')
     print('- 3 --> sine')
     print('- 4 --> cosine')
-    print('- 5 --> wrapped Wiener process')
     print('Fourth argument is the choise of which input to choose:')
     print('1 chooses input 1 and 0 chooses input 2.\n')
     print('Fifth argument is optional and is for refleshing the firmware.')
