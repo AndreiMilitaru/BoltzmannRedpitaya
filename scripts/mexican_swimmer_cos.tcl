@@ -40,7 +40,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 
 # The design that will be created by this Tcl script contains the following 
 # module references:
-# mux_2, axis_red_pitaya_dac, dac_out_switch, cosine, sine, axis_red_pitaya_adc, phase_wrapper, arithmetic_rotator
+# mux_2, axis_red_pitaya_dac, dac_out_switch, cosine, sine, clock_reducer, axis_red_pitaya_adc, phase_wrapper, arithmetic_rotator
 
 # Please add the sources of those modules before sourcing this Tcl script.
 
@@ -134,10 +134,10 @@ xilinx.com:ip:util_ds_buf:2.1\
 xilinx.com:ip:xlconstant:1.1\
 xilinx.com:ip:axi_gpio:2.0\
 xilinx.com:ip:xlslice:1.0\
-xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:processing_system7:5.5\
 xilinx.com:ip:xlconcat:2.1\
+xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:mult_gen:12.0\
 "
 
@@ -169,6 +169,7 @@ axis_red_pitaya_dac\
 dac_out_switch\
 cosine\
 sine\
+clock_reducer\
 axis_red_pitaya_adc\
 phase_wrapper\
 arithmetic_rotator\
@@ -237,10 +238,12 @@ proc create_hier_cell_Noise_rescaler { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
-  create_bd_pin -dir I -from 13 -to 0 -type data Dout
+  create_bd_pin -dir I -from 47 -to 0 -type data A
+  create_bd_pin -dir I -type clk CLK
+  create_bd_pin -dir O -from 47 -to 0 Dout
+  create_bd_pin -dir O -from 13 -to 0 Dout1
   create_bd_pin -dir O -from 13 -to 0 Dout2
   create_bd_pin -dir I -from 31 -to 0 In0
-  create_bd_pin -dir I -type clk clk_i
   create_bd_pin -dir I -from 0 -to 0 rst_i
 
   # Create instance: arithmetic_rotator_0, and set properties
@@ -255,7 +258,7 @@ proc create_hier_cell_Noise_rescaler { parentCell nameHier } {
    }
     set_property -dict [ list \
    CONFIG.SHIFT {33} \
-   CONFIG.WIDTH {47} \
+   CONFIG.WIDTH {81} \
  ] $arithmetic_rotator_0
 
   # Create instance: gamma_augmenter, and set properties
@@ -268,30 +271,50 @@ proc create_hier_cell_Noise_rescaler { parentCell nameHier } {
   # Create instance: mult_gen_0, and set properties
   set mult_gen_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:mult_gen:12.0 mult_gen_0 ]
   set_property -dict [ list \
-   CONFIG.OutputWidthHigh {46} \
+   CONFIG.OutputWidthHigh {80} \
    CONFIG.PipeStages {5} \
-   CONFIG.PortAWidth {14} \
+   CONFIG.PortAWidth {48} \
    CONFIG.PortBWidth {33} \
  ] $mult_gen_0
+
+  # Create instance: rescale_for_DAC, and set properties
+  set rescale_for_DAC [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 rescale_for_DAC ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {47} \
+   CONFIG.DIN_TO {34} \
+   CONFIG.DIN_WIDTH {81} \
+   CONFIG.DOUT_WIDTH {14} \
+ ] $rescale_for_DAC
+
+  # Create instance: rescale_for_DAC_amplified, and set properties
+  set rescale_for_DAC_amplified [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 rescale_for_DAC_amplified ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {34} \
+   CONFIG.DIN_TO {21} \
+   CONFIG.DIN_WIDTH {81} \
+   CONFIG.DOUT_WIDTH {14} \
+ ] $rescale_for_DAC_amplified
 
   # Create instance: rescaler, and set properties
   set rescaler [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 rescaler ]
   set_property -dict [ list \
-   CONFIG.DIN_FROM {13} \
+   CONFIG.DIN_FROM {47} \
    CONFIG.DIN_TO {0} \
-   CONFIG.DIN_WIDTH {47} \
-   CONFIG.DOUT_WIDTH {14} \
+   CONFIG.DIN_WIDTH {81} \
+   CONFIG.DOUT_WIDTH {48} \
  ] $rescaler
 
   # Create port connections
+  connect_bd_net -net A_1 [get_bd_pins A] [get_bd_pins mult_gen_0/A]
+  connect_bd_net -net CLK_1 [get_bd_pins CLK] [get_bd_pins mult_gen_0/CLK]
   connect_bd_net -net In0_1 [get_bd_pins In0] [get_bd_pins gamma_augmenter/In0]
-  connect_bd_net -net In0_DI_1 [get_bd_pins Dout] [get_bd_pins mult_gen_0/A]
-  connect_bd_net -net arithmetic_rotator_0_right_data_o [get_bd_pins arithmetic_rotator_0/right_data_o] [get_bd_pins rescaler/Din]
+  connect_bd_net -net arithmetic_rotator_0_right_data_o [get_bd_pins arithmetic_rotator_0/right_data_o] [get_bd_pins rescale_for_DAC/Din] [get_bd_pins rescale_for_DAC_amplified/Din] [get_bd_pins rescaler/Din]
   connect_bd_net -net gamma_augmenter_dout [get_bd_pins gamma_augmenter/dout] [get_bd_pins mult_gen_0/B]
   connect_bd_net -net mult_gen_0_P [get_bd_pins arithmetic_rotator_0/data_i] [get_bd_pins mult_gen_0/P]
-  connect_bd_net -net sampling_reducer_0_clk_o [get_bd_pins clk_i] [get_bd_pins mult_gen_0/CLK]
+  connect_bd_net -net rescale_for_DAC_amplified_Dout [get_bd_pins Dout1] [get_bd_pins rescale_for_DAC_amplified/Dout]
+  connect_bd_net -net rescaler_Dout [get_bd_pins Dout] [get_bd_pins rescaler/Dout]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins gamma_augmenter/In1]
-  connect_bd_net -net xlslice_0_Dout [get_bd_pins Dout2] [get_bd_pins rescaler/Dout]
+  connect_bd_net -net xlslice_0_Dout [get_bd_pins Dout2] [get_bd_pins rescale_for_DAC/Dout]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -334,11 +357,21 @@ proc create_hier_cell_Integrator { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
+  create_bd_pin -dir I CLK
   create_bd_pin -dir O -from 13 -to 0 Dout
-  create_bd_pin -dir I -from 13 -to 0 Dout3
-  create_bd_pin -dir I -type clk clk_i
+  create_bd_pin -dir O -from 15 -to 0 Dout1
+  create_bd_pin -dir O -from 13 -to 0 Dout2
+  create_bd_pin -dir I -from 47 -to 0 data_i
   create_bd_pin -dir I rst_i
-  create_bd_pin -dir O -from 14 -to 0 sum_o
+
+  # Create instance: LUT_slicer, and set properties
+  set LUT_slicer [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 LUT_slicer ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {47} \
+   CONFIG.DIN_TO {32} \
+   CONFIG.DIN_WIDTH {48} \
+   CONFIG.DOUT_WIDTH {16} \
+ ] $LUT_slicer
 
   # Create instance: phase_wrapper_0, and set properties
   set block_name phase_wrapper
@@ -351,23 +384,34 @@ proc create_hier_cell_Integrator { parentCell nameHier } {
      return 1
    }
     set_property -dict [ list \
-   CONFIG.WIDTH {14} \
+   CONFIG.WIDTH {48} \
  ] $phase_wrapper_0
+
+  # Create instance: sum_amplified, and set properties
+  set sum_amplified [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 sum_amplified ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {32} \
+   CONFIG.DIN_TO {19} \
+   CONFIG.DIN_WIDTH {48} \
+   CONFIG.DOUT_WIDTH {1} \
+ ] $sum_amplified
 
   # Create instance: sum_slicer, and set properties
   set sum_slicer [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 sum_slicer ]
   set_property -dict [ list \
-   CONFIG.DIN_FROM {14} \
-   CONFIG.DIN_TO {1} \
-   CONFIG.DIN_WIDTH {15} \
+   CONFIG.DIN_FROM {47} \
+   CONFIG.DIN_TO {34} \
+   CONFIG.DIN_WIDTH {48} \
    CONFIG.DOUT_WIDTH {14} \
  ] $sum_slicer
 
   # Create port connections
-  connect_bd_net -net Dout3_1 [get_bd_pins Dout3] [get_bd_pins phase_wrapper_0/data_i]
-  connect_bd_net -net clk_i_1 [get_bd_pins clk_i] [get_bd_pins phase_wrapper_0/clk_i]
-  connect_bd_net -net phase_wrapper_0_sum_o [get_bd_pins sum_o] [get_bd_pins phase_wrapper_0/sum_o] [get_bd_pins sum_slicer/Din]
+  connect_bd_net -net CLK_1 [get_bd_pins CLK] [get_bd_pins phase_wrapper_0/clk_i]
+  connect_bd_net -net LUT_slicer_Dout [get_bd_pins Dout1] [get_bd_pins LUT_slicer/Dout]
+  connect_bd_net -net data_i_1 [get_bd_pins data_i] [get_bd_pins phase_wrapper_0/data_i]
+  connect_bd_net -net phase_wrapper_0_sum_o [get_bd_pins LUT_slicer/Din] [get_bd_pins phase_wrapper_0/sum_o] [get_bd_pins sum_amplified/Din] [get_bd_pins sum_slicer/Din]
   connect_bd_net -net rst_i_1 [get_bd_pins rst_i] [get_bd_pins phase_wrapper_0/rst_i]
+  connect_bd_net -net sum_amplified_Dout [get_bd_pins Dout2] [get_bd_pins sum_amplified/Dout]
   connect_bd_net -net sum_slicer_Dout [get_bd_pins Dout] [get_bd_pins sum_slicer/Dout]
 
   # Restore current instance
@@ -449,6 +493,94 @@ proc create_hier_cell_adc { parentCell nameHier } {
   current_bd_instance $oldCurInst
 }
 
+# Hierarchical cell: Clock_Wizardry
+proc create_hier_cell_Clock_Wizardry { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Clock_Wizardry() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din
+  create_bd_pin -dir I -type clk clk_in1
+  create_bd_pin -dir O clk_o
+  create_bd_pin -dir O -type clk clk_out2
+  create_bd_pin -dir O locked1
+
+  # Create instance: clk_wiz_0, and set properties
+  set clk_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_0 ]
+  set_property -dict [ list \
+   CONFIG.CLKIN1_JITTER_PS {320.0} \
+   CONFIG.CLKOUT1_JITTER {175.817} \
+   CONFIG.CLKOUT1_PHASE_ERROR {204.239} \
+   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250} \
+   CONFIG.CLKOUT2_JITTER {296.667} \
+   CONFIG.CLKOUT2_PHASE_ERROR {204.239} \
+   CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {31.25} \
+   CONFIG.CLKOUT2_USED {true} \
+   CONFIG.MMCM_CLKFBOUT_MULT_F {32.000} \
+   CONFIG.MMCM_CLKIN1_PERIOD {32.000} \
+   CONFIG.MMCM_CLKIN2_PERIOD {10.0} \
+   CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.000} \
+   CONFIG.MMCM_CLKOUT1_DIVIDE {32} \
+   CONFIG.MMCM_DIVCLK_DIVIDE {1} \
+   CONFIG.NUM_OUT_CLKS {2} \
+   CONFIG.PRIM_IN_FREQ {31.25} \
+   CONFIG.USE_RESET {false} \
+ ] $clk_wiz_0
+
+  # Create instance: clock_reducer_0, and set properties
+  set block_name clock_reducer
+  set block_cell_name clock_reducer_0
+  if { [catch {set clock_reducer_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $clock_reducer_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
+  # Create port connections
+  connect_bd_net -net Din_1 [get_bd_pins Din] [get_bd_pins clock_reducer_0/divider_i]
+  connect_bd_net -net adc_adc_clk [get_bd_pins clk_in1] [get_bd_pins clk_wiz_0/clk_in1]
+  connect_bd_net -net clk_wiz_0_clk_out1 [get_bd_pins clk_out2] [get_bd_pins clk_wiz_0/clk_out1]
+  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_pins clk_wiz_0/clk_out2] [get_bd_pins clock_reducer_0/clk_i]
+  connect_bd_net -net clk_wiz_0_locked [get_bd_pins locked1] [get_bd_pins clk_wiz_0/locked]
+  connect_bd_net -net clock_reducer_0_clk_o [get_bd_pins clk_o] [get_bd_pins clock_reducer_0/clk_o]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
 # Hierarchical cell: Wiener_process
 proc create_hier_cell_Wiener_process { parentCell nameHier } {
 
@@ -486,13 +618,15 @@ proc create_hier_cell_Wiener_process { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
-  create_bd_pin -dir I -from 13 -to 0 -type data Dout
+  create_bd_pin -dir I -from 47 -to 0 -type data A
+  create_bd_pin -dir I -type clk CLK
+  create_bd_pin -dir O -from 15 -to 0 Dout
   create_bd_pin -dir O -from 13 -to 0 Dout1
   create_bd_pin -dir O -from 13 -to 0 Dout2
+  create_bd_pin -dir O -from 13 -to 0 Dout3
+  create_bd_pin -dir O -from 13 -to 0 Dout4
   create_bd_pin -dir I -from 31 -to 0 In0
-  create_bd_pin -dir I -type clk clk_i
   create_bd_pin -dir I -from 0 -to 0 rst_i
-  create_bd_pin -dir O -from 14 -to 0 sum_o
 
   # Create instance: Integrator
   create_hier_cell_Integrator $hier_obj Integrator
@@ -501,12 +635,15 @@ proc create_hier_cell_Wiener_process { parentCell nameHier } {
   create_hier_cell_Noise_rescaler $hier_obj Noise_rescaler
 
   # Create port connections
+  connect_bd_net -net A_1 [get_bd_pins A] [get_bd_pins Noise_rescaler/A]
+  connect_bd_net -net CLK_1 [get_bd_pins CLK] [get_bd_pins Integrator/CLK] [get_bd_pins Noise_rescaler/CLK]
   connect_bd_net -net In0_1 [get_bd_pins In0] [get_bd_pins Noise_rescaler/In0]
-  connect_bd_net -net In0_DI_1 [get_bd_pins Dout] [get_bd_pins Noise_rescaler/Dout]
   connect_bd_net -net Integrator_Dout [get_bd_pins Dout2] [get_bd_pins Integrator/Dout]
-  connect_bd_net -net Integrator_sum_o [get_bd_pins sum_o] [get_bd_pins Integrator/sum_o]
-  connect_bd_net -net Noise_rescaler_Dout2 [get_bd_pins Dout1] [get_bd_pins Integrator/Dout3] [get_bd_pins Noise_rescaler/Dout2]
-  connect_bd_net -net sampling_reducer_0_clk_o [get_bd_pins clk_i] [get_bd_pins Integrator/clk_i] [get_bd_pins Noise_rescaler/clk_i]
+  connect_bd_net -net Integrator_Dout1 [get_bd_pins Dout] [get_bd_pins Integrator/Dout1]
+  connect_bd_net -net Integrator_Dout2 [get_bd_pins Dout3] [get_bd_pins Integrator/Dout2]
+  connect_bd_net -net Noise_rescaler_Dout1 [get_bd_pins Dout4] [get_bd_pins Noise_rescaler/Dout1]
+  connect_bd_net -net Noise_rescaler_Dout2 [get_bd_pins Dout1] [get_bd_pins Noise_rescaler/Dout2]
+  connect_bd_net -net data_i_1 [get_bd_pins Integrator/data_i] [get_bd_pins Noise_rescaler/Dout]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins Integrator/rst_i] [get_bd_pins Noise_rescaler/rst_i]
 
   # Restore current instance
@@ -551,7 +688,7 @@ proc create_hier_cell_Swimmer { parentCell nameHier } {
 
   # Create pins
   create_bd_pin -dir I clk_i
-  create_bd_pin -dir I -from 14 -to 0 data_i
+  create_bd_pin -dir I -from 15 -to 0 data_i
   create_bd_pin -dir O -from 13 -to 0 data_o
   create_bd_pin -dir O -from 13 -to 0 data_o1
   create_bd_pin -dir I rst_i
@@ -579,11 +716,79 @@ proc create_hier_cell_Swimmer { parentCell nameHier } {
    }
   
   # Create port connections
+  connect_bd_net -net Net [get_bd_pins data_i] [get_bd_pins cosine_0/data_i] [get_bd_pins sine_0/data_i]
   connect_bd_net -net clk_i_1 [get_bd_pins clk_i] [get_bd_pins cosine_0/clk_i] [get_bd_pins sine_0/clk_i]
   connect_bd_net -net cosine_0_data_o [get_bd_pins data_o] [get_bd_pins cosine_0/data_o]
-  connect_bd_net -net data_i1_1 [get_bd_pins data_i] [get_bd_pins cosine_0/data_i] [get_bd_pins sine_0/data_i]
   connect_bd_net -net rst_i_1 [get_bd_pins rst_i] [get_bd_pins cosine_0/rst_i] [get_bd_pins sine_0/rst_i]
   connect_bd_net -net sine_0_data_o [get_bd_pins data_o1] [get_bd_pins sine_0/data_o]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: Data_augmenter
+proc create_hier_cell_Data_augmenter { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Data_augmenter() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 15 -to 0 Din
+  create_bd_pin -dir O -from 13 -to 0 Dout1
+  create_bd_pin -dir I -from 31 -to 0 In1
+  create_bd_pin -dir O -from 47 -to 0 -type data dout
+
+  # Create instance: data_input, and set properties
+  set data_input [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 data_input ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {15} \
+   CONFIG.DIN_TO {2} \
+   CONFIG.DIN_WIDTH {16} \
+   CONFIG.DOUT_WIDTH {14} \
+ ] $data_input
+
+  # Create instance: xlconcat_0, and set properties
+  set xlconcat_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_0 ]
+  set_property -dict [ list \
+   CONFIG.IN0_WIDTH {32} \
+   CONFIG.IN1_WIDTH {16} \
+ ] $xlconcat_0
+
+  # Create port connections
+  connect_bd_net -net In0_DI_1 [get_bd_pins Dout1] [get_bd_pins data_input/Dout]
+  connect_bd_net -net In1_1 [get_bd_pins In1] [get_bd_pins xlconcat_0/In0]
+  connect_bd_net -net sampling_reducer_0_data_o [get_bd_pins Din] [get_bd_pins data_input/Din] [get_bd_pins xlconcat_0/In1]
+  connect_bd_net -net xlconcat_0_dout [get_bd_pins dout] [get_bd_pins xlconcat_0/dout]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -641,8 +846,8 @@ proc create_hier_cell_soc { parentCell nameHier } {
 
   # Create pins
   create_bd_pin -dir O -type clk FCLK_CLK0
-  create_bd_pin -dir I -type clk clk
   create_bd_pin -dir O -from 0 -to 0 -type rst peripheral_aresetn
+  create_bd_pin -dir I -type clk slowest_sync_clk
 
   # Create instance: proc_sys_reset_0, and set properties
   set proc_sys_reset_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0 ]
@@ -1326,7 +1531,7 @@ proc create_hier_cell_soc { parentCell nameHier } {
 
   # Create port connections
   connect_bd_net -net ARESETN_1 [get_bd_pins ps7_0_axi_periph/ARESETN] [get_bd_pins rst_ps7_0_125M/interconnect_aresetn]
-  connect_bd_net -net M00_ACLK_1 [get_bd_pins clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins ps7_0_axi_periph/M00_ACLK] [get_bd_pins ps7_0_axi_periph/M01_ACLK] [get_bd_pins ps7_0_axi_periph/M02_ACLK] [get_bd_pins ps7_0_axi_periph/M03_ACLK] [get_bd_pins ps7_0_axi_periph/M04_ACLK] [get_bd_pins ps7_0_axi_periph/M05_ACLK]
+  connect_bd_net -net M00_ACLK_1 [get_bd_pins slowest_sync_clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins ps7_0_axi_periph/M00_ACLK] [get_bd_pins ps7_0_axi_periph/M01_ACLK] [get_bd_pins ps7_0_axi_periph/M02_ACLK] [get_bd_pins ps7_0_axi_periph/M03_ACLK] [get_bd_pins ps7_0_axi_periph/M04_ACLK] [get_bd_pins ps7_0_axi_periph/M05_ACLK]
   connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins peripheral_aresetn] [get_bd_pins proc_sys_reset_0/peripheral_aresetn] [get_bd_pins ps7_0_axi_periph/M00_ARESETN] [get_bd_pins ps7_0_axi_periph/M01_ARESETN] [get_bd_pins ps7_0_axi_periph/M02_ARESETN] [get_bd_pins ps7_0_axi_periph/M03_ARESETN] [get_bd_pins ps7_0_axi_periph/M04_ARESETN] [get_bd_pins ps7_0_axi_periph/M05_ARESETN]
   connect_bd_net -net processing_system7_0_FCLK_CLK0 [get_bd_pins FCLK_CLK0] [get_bd_pins processing_system7_0/FCLK_CLK0] [get_bd_pins processing_system7_0/M_AXI_GP0_ACLK] [get_bd_pins processing_system7_0/S_AXI_HP0_ACLK] [get_bd_pins ps7_0_axi_periph/ACLK] [get_bd_pins ps7_0_axi_periph/S00_ACLK] [get_bd_pins rst_ps7_0_125M/slowest_sync_clk]
   connect_bd_net -net processing_system7_0_FCLK_RESET0_N [get_bd_pins processing_system7_0/FCLK_RESET0_N] [get_bd_pins rst_ps7_0_125M/ext_reset_in]
@@ -1374,7 +1579,7 @@ proc create_hier_cell_dac { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
-  create_bd_pin -dir I -type clk Clk_CI
+  create_bd_pin -dir I Clk_CI
   create_bd_pin -dir I -from 13 -to 0 In0_DI
   create_bd_pin -dir I -from 13 -to 0 In1_DI
   create_bd_pin -dir I -from 13 -to 0 In2_DI
@@ -1496,43 +1701,35 @@ proc create_hier_cell_adc_in { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din
+  create_bd_pin -dir O -from 13 -to 0 Dout
   create_bd_pin -dir O -from 15 -to 0 adc_b
   create_bd_pin -dir I -type clk adc_clk_n
   create_bd_pin -dir I -type clk adc_clk_p
   create_bd_pin -dir O adc_csn
   create_bd_pin -dir I -from 13 -to 0 adc_dat_a
   create_bd_pin -dir I -from 13 -to 0 adc_dat_b
-  create_bd_pin -dir O -type clk clk_out1
+  create_bd_pin -dir O -type clk clk_o
   create_bd_pin -dir O -type clk clk_out2
   create_bd_pin -dir O -from 15 -to 0 data_o
   create_bd_pin -dir O locked
   create_bd_pin -dir O locked1
   create_bd_pin -dir I sel_i
 
+  # Create instance: ADCB_slicer, and set properties
+  set ADCB_slicer [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 ADCB_slicer ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {15} \
+   CONFIG.DIN_TO {2} \
+   CONFIG.DIN_WIDTH {16} \
+   CONFIG.DOUT_WIDTH {14} \
+ ] $ADCB_slicer
+
+  # Create instance: Clock_Wizardry
+  create_hier_cell_Clock_Wizardry $hier_obj Clock_Wizardry
+
   # Create instance: adc
   create_hier_cell_adc $hier_obj adc
-
-  # Create instance: clk_wiz_0, and set properties
-  set clk_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_0 ]
-  set_property -dict [ list \
-   CONFIG.CLKIN1_JITTER_PS {320.0} \
-   CONFIG.CLKOUT1_JITTER {175.817} \
-   CONFIG.CLKOUT1_PHASE_ERROR {204.239} \
-   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250} \
-   CONFIG.CLKOUT2_JITTER {296.667} \
-   CONFIG.CLKOUT2_PHASE_ERROR {204.239} \
-   CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {31.25} \
-   CONFIG.CLKOUT2_USED {true} \
-   CONFIG.MMCM_CLKFBOUT_MULT_F {32.000} \
-   CONFIG.MMCM_CLKIN1_PERIOD {32.000} \
-   CONFIG.MMCM_CLKIN2_PERIOD {10.0} \
-   CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.000} \
-   CONFIG.MMCM_CLKOUT1_DIVIDE {32} \
-   CONFIG.MMCM_DIVCLK_DIVIDE {1} \
-   CONFIG.NUM_OUT_CLKS {2} \
-   CONFIG.PRIM_IN_FREQ {31.25} \
-   CONFIG.USE_RESET {false} \
- ] $clk_wiz_0
 
   # Create instance: mux_2_0, and set properties
   set block_name mux_2
@@ -1546,17 +1743,19 @@ proc create_hier_cell_adc_in { parentCell nameHier } {
    }
   
   # Create port connections
+  connect_bd_net -net ADCB_slicer_Dout [get_bd_pins Dout] [get_bd_pins ADCB_slicer/Dout]
+  connect_bd_net -net Clock_Wizardry_clk_o [get_bd_pins clk_o] [get_bd_pins Clock_Wizardry/clk_o]
+  connect_bd_net -net Din_1 [get_bd_pins Din] [get_bd_pins Clock_Wizardry/Din]
   connect_bd_net -net adc_adc_a [get_bd_pins adc/adc_a] [get_bd_pins mux_2_0/a_in]
   connect_bd_net -net adc_adc_b [get_bd_pins adc_b] [get_bd_pins adc/adc_b] [get_bd_pins mux_2_0/b_in]
-  connect_bd_net -net adc_adc_clk [get_bd_pins adc/adc_clk] [get_bd_pins clk_wiz_0/clk_in1]
+  connect_bd_net -net adc_adc_clk [get_bd_pins ADCB_slicer/Din] [get_bd_pins Clock_Wizardry/clk_in1] [get_bd_pins adc/adc_clk]
   connect_bd_net -net adc_adc_csn [get_bd_pins adc_csn] [get_bd_pins adc/adc_csn]
   connect_bd_net -net adc_clk_n_i_1 [get_bd_pins adc_clk_n] [get_bd_pins adc/adc_clk_n]
   connect_bd_net -net adc_clk_p_i_1 [get_bd_pins adc_clk_p] [get_bd_pins adc/adc_clk_p]
   connect_bd_net -net adc_dat_a_i_1 [get_bd_pins adc_dat_a] [get_bd_pins adc/adc_dat_a]
   connect_bd_net -net adc_dat_b_i_1 [get_bd_pins adc_dat_b] [get_bd_pins adc/adc_dat_b]
-  connect_bd_net -net clk_wiz_0_clk_out1 [get_bd_pins clk_out2] [get_bd_pins clk_wiz_0/clk_out1]
-  connect_bd_net -net clk_wiz_0_clk_out2 [get_bd_pins clk_out1] [get_bd_pins clk_wiz_0/clk_out2]
-  connect_bd_net -net clk_wiz_0_locked [get_bd_pins locked] [get_bd_pins locked1] [get_bd_pins clk_wiz_0/locked]
+  connect_bd_net -net clk_wiz_0_clk_out1 [get_bd_pins clk_out2] [get_bd_pins Clock_Wizardry/clk_out2]
+  connect_bd_net -net clk_wiz_0_locked [get_bd_pins locked] [get_bd_pins locked1] [get_bd_pins Clock_Wizardry/locked1]
   connect_bd_net -net mux_2_0_out_o [get_bd_pins data_o] [get_bd_pins mux_2_0/out_o]
   connect_bd_net -net sel_i_1 [get_bd_pins sel_i] [get_bd_pins mux_2_0/sel_i]
 
@@ -1678,13 +1877,19 @@ proc create_hier_cell_Processing { parentCell nameHier } {
   # Create pins
   create_bd_pin -dir I -from 15 -to 0 Din
   create_bd_pin -dir O -from 13 -to 0 Dout
+  create_bd_pin -dir O -from 13 -to 0 Dout1
   create_bd_pin -dir O -from 13 -to 0 Dout2
   create_bd_pin -dir O -from 13 -to 0 Dout3
+  create_bd_pin -dir O -from 13 -to 0 Dout4
   create_bd_pin -dir I -from 31 -to 0 In0
+  create_bd_pin -dir I -from 31 -to 0 In1
   create_bd_pin -dir I clk_i
   create_bd_pin -dir O -from 13 -to 0 data_o
   create_bd_pin -dir O -from 13 -to 0 data_o1
   create_bd_pin -dir I rst_i
+
+  # Create instance: Data_augmenter
+  create_hier_cell_Data_augmenter $hier_obj Data_augmenter
 
   # Create instance: Swimmer
   create_hier_cell_Swimmer $hier_obj Swimmer
@@ -1692,24 +1897,19 @@ proc create_hier_cell_Processing { parentCell nameHier } {
   # Create instance: Wiener_process
   create_hier_cell_Wiener_process $hier_obj Wiener_process
 
-  # Create instance: data_input, and set properties
-  set data_input [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 data_input ]
-  set_property -dict [ list \
-   CONFIG.DIN_FROM {13} \
-   CONFIG.DIN_TO {0} \
-   CONFIG.DIN_WIDTH {16} \
-   CONFIG.DOUT_WIDTH {14} \
- ] $data_input
-
   # Create port connections
+  connect_bd_net -net Data_augmenter_dout [get_bd_pins Data_augmenter/dout] [get_bd_pins Wiener_process/A]
   connect_bd_net -net In0_1 [get_bd_pins In0] [get_bd_pins Wiener_process/In0]
-  connect_bd_net -net In0_DI_1 [get_bd_pins Dout] [get_bd_pins Wiener_process/Dout] [get_bd_pins data_input/Dout]
+  connect_bd_net -net In0_DI_1 [get_bd_pins Dout] [get_bd_pins Data_augmenter/Dout1]
+  connect_bd_net -net In1_1 [get_bd_pins In1] [get_bd_pins Data_augmenter/In1]
+  connect_bd_net -net Wiener_process_Dout [get_bd_pins Swimmer/data_i] [get_bd_pins Wiener_process/Dout]
   connect_bd_net -net Wiener_process_Dout1 [get_bd_pins Dout2] [get_bd_pins Wiener_process/Dout1]
   connect_bd_net -net Wiener_process_Dout2 [get_bd_pins Dout3] [get_bd_pins Wiener_process/Dout2]
-  connect_bd_net -net Wiener_process_sum_o [get_bd_pins Swimmer/data_i] [get_bd_pins Wiener_process/sum_o]
+  connect_bd_net -net Wiener_process_Dout3 [get_bd_pins Dout4] [get_bd_pins Wiener_process/Dout3]
+  connect_bd_net -net Wiener_process_Dout4 [get_bd_pins Dout1] [get_bd_pins Wiener_process/Dout4]
+  connect_bd_net -net clk_i_1 [get_bd_pins clk_i] [get_bd_pins Swimmer/clk_i] [get_bd_pins Wiener_process/CLK]
   connect_bd_net -net cosine_0_data_o [get_bd_pins data_o] [get_bd_pins Swimmer/data_o]
-  connect_bd_net -net sampling_reducer_0_clk_o [get_bd_pins clk_i] [get_bd_pins Swimmer/clk_i] [get_bd_pins Wiener_process/clk_i]
-  connect_bd_net -net sampling_reducer_0_data_o [get_bd_pins Din] [get_bd_pins data_input/Din]
+  connect_bd_net -net sampling_reducer_0_data_o [get_bd_pins Din] [get_bd_pins Data_augmenter/Din]
   connect_bd_net -net sine_0_data_o [get_bd_pins data_o1] [get_bd_pins Swimmer/data_o1]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins rst_i] [get_bd_pins Swimmer/rst_i] [get_bd_pins Wiener_process/rst_i]
 
@@ -1771,7 +1971,7 @@ proc create_hier_cell_GPIO { parentCell nameHier } {
   create_bd_pin -dir O -from 31 -to 0 gpio_io_o2
   create_bd_pin -dir O -from 31 -to 0 gpio_io_o3
   create_bd_pin -dir O -from 31 -to 0 gpio_io_o4
-  create_bd_pin -dir I -type clk s_axi_aclk
+  create_bd_pin -dir I -type clk slowest_sync_clk
 
   # Create instance: axi_gpio_0, and set properties
   set axi_gpio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 axi_gpio_0 ]
@@ -1813,7 +2013,7 @@ proc create_hier_cell_GPIO { parentCell nameHier } {
   connect_bd_net -net axi_gpio_2_gpio2_io_o [get_bd_pins gpio2_io_o2] [get_bd_pins axi_gpio_2/gpio2_io_i] [get_bd_pins axi_gpio_2/gpio2_io_o]
   connect_bd_net -net axi_gpio_2_gpio_io_o [get_bd_pins gpio_io_o3] [get_bd_pins axi_gpio_2/gpio_io_i] [get_bd_pins axi_gpio_2/gpio_io_o]
   connect_bd_net -net axi_gpio_3_gpio_io_o [get_bd_pins gpio_io_o2] [get_bd_pins axi_gpio_3/gpio_io_i] [get_bd_pins axi_gpio_3/gpio_io_o]
-  connect_bd_net -net clk_1 [get_bd_pins s_axi_aclk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_gpio_1/s_axi_aclk] [get_bd_pins axi_gpio_2/s_axi_aclk] [get_bd_pins axi_gpio_3/s_axi_aclk] [get_bd_pins soc/clk]
+  connect_bd_net -net slowest_sync_clk_1 [get_bd_pins slowest_sync_clk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_gpio_1/s_axi_aclk] [get_bd_pins axi_gpio_2/s_axi_aclk] [get_bd_pins axi_gpio_3/s_axi_aclk] [get_bd_pins soc/slowest_sync_clk]
   connect_bd_net -net soc_FCLK_CLK0 [get_bd_pins FCLK_CLK0] [get_bd_pins soc/FCLK_CLK0]
   connect_bd_net -net soc_peripheral_aresetn [get_bd_pins axi_gpio_0/s_axi_aresetn] [get_bd_pins axi_gpio_1/s_axi_aresetn] [get_bd_pins axi_gpio_2/s_axi_aresetn] [get_bd_pins axi_gpio_3/s_axi_aresetn] [get_bd_pins soc/peripheral_aresetn]
 
@@ -1860,6 +2060,14 @@ proc create_hier_cell_Constants { parentCell nameHier } {
   # Create pins
   create_bd_pin -dir O -from 0 -to 0 dout
   create_bd_pin -dir O -from 0 -to 0 dout1
+  create_bd_pin -dir O -from 31 -to 0 dout2
+
+  # Create instance: data_augmentation, and set properties
+  set data_augmentation [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 data_augmentation ]
+  set_property -dict [ list \
+   CONFIG.CONST_VAL {0} \
+   CONFIG.CONST_WIDTH {32} \
+ ] $data_augmentation
 
   # Create instance: xlconstant_0, and set properties
   set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
@@ -1875,6 +2083,7 @@ proc create_hier_cell_Constants { parentCell nameHier } {
 
   # Create port connections
   connect_bd_net -net Reset_RBI_1 [get_bd_pins dout] [get_bd_pins xlconstant_1/dout]
+  connect_bd_net -net data_augmentation_dout [get_bd_pins dout2] [get_bd_pins data_augmentation/dout]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins dout1] [get_bd_pins xlconstant_0/dout]
 
   # Restore current instance
@@ -2050,9 +2259,14 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net soc_FIXED_IO [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins GPIO/FIXED_IO]
 
   # Create port connections
+  connect_bd_net -net Constants_dout2 [get_bd_pins Constants/dout2] [get_bd_pins Processing/In1]
   connect_bd_net -net DAC_switch_1_Dout [get_bd_pins Switch_control/Dout1] [get_bd_pins dac/SwitchDac0_SI]
   connect_bd_net -net DAC_switch_2_Dout [get_bd_pins Switch_control/Dout] [get_bd_pins dac/SwitchDac1_SI]
   connect_bd_net -net GPIO_gpio_io_o [get_bd_pins GPIO/gpio_io_o] [get_bd_pins Processing/In0]
+  connect_bd_net -net GPIO_gpio_io_o3 [get_bd_pins GPIO/gpio_io_o3] [get_bd_pins adc_in/Din]
+  connect_bd_net -net In5_DI_1 [get_bd_pins Processing/Dout4] [get_bd_pins dac/In5_DI]
+  connect_bd_net -net In6_DI_1 [get_bd_pins Processing/Dout1] [get_bd_pins dac/In6_DI]
+  connect_bd_net -net In7_DI_1 [get_bd_pins adc_in/Dout] [get_bd_pins dac/In7_DI]
   connect_bd_net -net Net [get_bd_pins GPIO/gpio_io_o1] [get_bd_pins Switch_control/Din]
   connect_bd_net -net Processing_Dout [get_bd_pins Processing/Dout] [get_bd_pins dac/In0_DI]
   connect_bd_net -net Processing_Dout2 [get_bd_pins Processing/Dout2] [get_bd_pins dac/In1_DI]
@@ -2066,7 +2280,7 @@ proc create_root_design { parentCell } {
   connect_bd_net -net adc_clk_p_i_1 [get_bd_ports adc_clk_p_i] [get_bd_pins adc_in/adc_clk_p]
   connect_bd_net -net adc_dat_a_i_1 [get_bd_ports adc_dat_a_i] [get_bd_pins adc_in/adc_dat_a]
   connect_bd_net -net adc_dat_b_i_1 [get_bd_ports adc_dat_b_i] [get_bd_pins adc_in/adc_dat_b]
-  connect_bd_net -net adc_in_clk_out1 [get_bd_pins GPIO/s_axi_aclk] [get_bd_pins Processing/clk_i] [get_bd_pins adc_in/clk_out1] [get_bd_pins dac/Clk_CI]
+  connect_bd_net -net adc_in_clk_o [get_bd_pins GPIO/slowest_sync_clk] [get_bd_pins Processing/clk_i] [get_bd_pins adc_in/clk_o] [get_bd_pins dac/Clk_CI]
   connect_bd_net -net adc_in_locked [get_bd_pins adc_in/locked] [get_bd_pins dac/Valid0_SI] [get_bd_pins dac/Valid1_SI] [get_bd_pins dac/Valid2_SI] [get_bd_pins dac/Valid3_SI] [get_bd_pins dac/Valid4_SI] [get_bd_pins dac/Valid5_SI] [get_bd_pins dac/Valid6_SI] [get_bd_pins dac/Valid7_SI]
   connect_bd_net -net dac_dac_clk [get_bd_ports dac_clk_o] [get_bd_pins dac/dac_clk]
   connect_bd_net -net dac_dac_dat [get_bd_ports dac_dat_o] [get_bd_pins dac/dac_dat]
@@ -2092,6 +2306,7 @@ proc create_root_design { parentCell } {
   # Restore current instance
   current_bd_instance $oldCurInst
 
+  validate_bd_design
   save_bd_design
 }
 # End of create_root_design()
@@ -2103,6 +2318,4 @@ proc create_root_design { parentCell } {
 
 create_root_design ""
 
-
-common::send_msg_id "BD_TCL-1000" "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 

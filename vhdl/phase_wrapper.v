@@ -11,12 +11,10 @@ module phase_wrapper #(
     input wire rst_i,
     input wire signed [WIDTH-1:0] data_i,
     
-    output wire signed [WIDTH:0] sum_o
+    output wire signed [WIDTH-1:0] sum_o
     );
     
-    reg signed [WIDTH:0] lower_bound = 'd0;
-    reg signed [WIDTH:0] upper_bound = {1'b0,{WIDTH{1'b1}}};
-    reg signed [WIDTH:0] sum_d, sum_q;
+    reg signed [WIDTH-1:0] sum_d, sum_q;
     
     assign sum_o = sum_q;
     

@@ -10,7 +10,11 @@ import sys
 -------------------------------------------
 User defined values:
 '''
+<<<<<<< HEAD
 input_bits = 17
+=======
+input_bits = 16
+>>>>>>> 65e627cf39b0f5cc0c0cf144756cb13362e5c131
 output_bits = 14
 path = '../vhdl/'
 module_name = 'cosine'

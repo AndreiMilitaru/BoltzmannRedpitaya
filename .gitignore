@@ -6,7 +6,7 @@
 ~$*     
 
 #don't add all the xilinx ip, just the needed header scripts
-
+.Xil
 tmp/*
 
 # no Notebook checkpoints
