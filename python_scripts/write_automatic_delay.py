@@ -10,10 +10,10 @@ import subprocess
 User defined values:
 '''
 # number of inputs of each of the signals that need to be multiplexed
-input_bits = 16
+input_bits = 1
 
 # number of signals that need to be multiplexed
-delay_channels = 256
+delay_channels = 512
 
 '''
 ------------------------------------------
