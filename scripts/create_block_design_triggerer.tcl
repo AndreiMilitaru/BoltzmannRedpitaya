@@ -40,7 +40,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 
 # The design that will be created by this Tcl script contains the following 
 # module references:
-# mux_2, signal_shutter, delay_max512clocks, axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch
+# signal_shutter, delay_max512clocks, axis_red_pitaya_adc, axis_red_pitaya_dac, dac_out_switch, mux_2, mux_2, mux_2
 
 # Please add the sources of those modules before sourcing this Tcl script.
 
@@ -132,12 +132,12 @@ if { $bCheckIPs == 1 } {
    set list_check_ips "\ 
 xilinx.com:ip:xlconcat:2.1\
 xilinx.com:ip:util_ds_buf:2.1\
-xilinx.com:ip:xlslice:1.0\
 xilinx.com:ip:xlconstant:1.1\
 xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:axi_gpio:2.0\
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:processing_system7:5.5\
+xilinx.com:ip:xlslice:1.0\
 "
 
    set list_ips_missing ""
@@ -163,12 +163,14 @@ xilinx.com:ip:processing_system7:5.5\
 set bCheckModules 1
 if { $bCheckModules == 1 } {
    set list_check_mods "\ 
-mux_2\
 signal_shutter\
 delay_max512clocks\
 axis_red_pitaya_adc\
 axis_red_pitaya_dac\
 dac_out_switch\
+mux_2\
+mux_2\
+mux_2\
 "
 
    set list_mods_missing ""
@@ -196,6 +198,195 @@ if { $bCheckIPsPassed != 1 } {
 # DESIGN PROCs
 ##################################################################
 
+
+# Hierarchical cell: input_slicers
+proc create_hier_cell_input_slicers { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_input_slicers() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din
+  create_bd_pin -dir O -from 8 -to 0 Dout
+  create_bd_pin -dir O -from 0 -to 0 Dout1
+  create_bd_pin -dir O -from 0 -to 0 Dout2
+  create_bd_pin -dir O -from 0 -to 0 Dout3
+
+  # Create instance: beam_enable_slice, and set properties
+  set beam_enable_slice [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 beam_enable_slice ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {9} \
+   CONFIG.DIN_TO {9} \
+   CONFIG.DOUT_WIDTH {1} \
+ ] $beam_enable_slice
+
+  # Create instance: delay_slicer, and set properties
+  set delay_slicer [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 delay_slicer ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {8} \
+   CONFIG.DOUT_WIDTH {9} \
+ ] $delay_slicer
+
+  # Create instance: feedback_enable_slice, and set properties
+  set feedback_enable_slice [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 feedback_enable_slice ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {10} \
+   CONFIG.DIN_TO {10} \
+   CONFIG.DOUT_WIDTH {1} \
+ ] $feedback_enable_slice
+
+  # Create instance: trigger_enable_slice, and set properties
+  set trigger_enable_slice [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 trigger_enable_slice ]
+  set_property -dict [ list \
+   CONFIG.DIN_FROM {11} \
+   CONFIG.DIN_TO {11} \
+   CONFIG.DOUT_WIDTH {1} \
+ ] $trigger_enable_slice
+
+  # Create port connections
+  connect_bd_net -net axi_gpio_4_gpio_io_o [get_bd_pins Din] [get_bd_pins beam_enable_slice/Din] [get_bd_pins delay_slicer/Din] [get_bd_pins feedback_enable_slice/Din] [get_bd_pins trigger_enable_slice/Din]
+  connect_bd_net -net enable_slice_Dout [get_bd_pins Dout1] [get_bd_pins beam_enable_slice/Dout]
+  connect_bd_net -net feedback_enable_slice_Dout [get_bd_pins Dout2] [get_bd_pins feedback_enable_slice/Dout]
+  connect_bd_net -net trigger_enable_slice_Dout [get_bd_pins Dout3] [get_bd_pins trigger_enable_slice/Dout]
+  connect_bd_net -net xlslice_0_Dout [get_bd_pins Dout] [get_bd_pins delay_slicer/Dout]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
+
+# Hierarchical cell: Enablers
+proc create_hier_cell_Enablers { parentCell nameHier } {
+
+  variable script_folder
+
+  if { $parentCell eq "" || $nameHier eq "" } {
+     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_Enablers() - Empty argument(s)!"}
+     return
+  }
+
+  # Get object for parentCell
+  set parentObj [get_bd_cells $parentCell]
+  if { $parentObj == "" } {
+     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
+     return
+  }
+
+  # Make sure parentObj is hier blk
+  set parentType [get_property TYPE $parentObj]
+  if { $parentType ne "hier" } {
+     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
+     return
+  }
+
+  # Save current instance; Restore later
+  set oldCurInst [current_bd_instance .]
+
+  # Set parent object as current
+  current_bd_instance $parentObj
+
+  # Create cell and set as current instance
+  set hier_obj [create_bd_cell -type hier $nameHier]
+  current_bd_instance $hier_obj
+
+  # Create interface pins
+
+  # Create pins
+  create_bd_pin -dir I -from 0 -to 0 a_in
+  create_bd_pin -dir I -from 0 -to 0 a_in1
+  create_bd_pin -dir I -from 0 -to 0 b_in
+  create_bd_pin -dir O -from 0 -to 0 out_o
+  create_bd_pin -dir O -from 0 -to 0 out_o1
+  create_bd_pin -dir O -from 0 -to 0 out_o2
+  create_bd_pin -dir I sel_i
+  create_bd_pin -dir I sel_i1
+  create_bd_pin -dir I sel_i2
+
+  # Create instance: Beam_Enabler, and set properties
+  set block_name mux_2
+  set block_cell_name Beam_Enabler
+  if { [catch {set Beam_Enabler [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $Beam_Enabler eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+   CONFIG.WIDTH {1} \
+ ] $Beam_Enabler
+
+  # Create instance: FeedbackEnabler, and set properties
+  set block_name mux_2
+  set block_cell_name FeedbackEnabler
+  if { [catch {set FeedbackEnabler [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $FeedbackEnabler eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+   CONFIG.WIDTH {1} \
+ ] $FeedbackEnabler
+
+  # Create instance: TriggerEnabler, and set properties
+  set block_name mux_2
+  set block_cell_name TriggerEnabler
+  if { [catch {set TriggerEnabler [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $TriggerEnabler eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+    set_property -dict [ list \
+   CONFIG.WIDTH {1} \
+ ] $TriggerEnabler
+
+  # Create port connections
+  connect_bd_net -net Beam_Enabler_out_o [get_bd_pins out_o] [get_bd_pins Beam_Enabler/out_o]
+  connect_bd_net -net ExperimentDriver_beam_o [get_bd_pins a_in] [get_bd_pins Beam_Enabler/a_in]
+  connect_bd_net -net ExperimentDriver_feedback_o [get_bd_pins a_in1] [get_bd_pins FeedbackEnabler/a_in] [get_bd_pins TriggerEnabler/a_in]
+  connect_bd_net -net FeedbackEnabler_out_o [get_bd_pins out_o2] [get_bd_pins FeedbackEnabler/out_o]
+  connect_bd_net -net TriggerEnabler_out_o [get_bd_pins out_o1] [get_bd_pins TriggerEnabler/out_o]
+  connect_bd_net -net input_slicers_Dout1 [get_bd_pins sel_i] [get_bd_pins Beam_Enabler/sel_i]
+  connect_bd_net -net input_slicers_Dout2 [get_bd_pins sel_i2] [get_bd_pins FeedbackEnabler/sel_i]
+  connect_bd_net -net input_slicers_Dout3 [get_bd_pins sel_i1] [get_bd_pins TriggerEnabler/sel_i]
+  connect_bd_net -net xlconstant_1_dout [get_bd_pins b_in] [get_bd_pins Beam_Enabler/b_in] [get_bd_pins FeedbackEnabler/b_in] [get_bd_pins TriggerEnabler/b_in]
+
+  # Restore current instance
+  current_bd_instance $oldCurInst
+}
 
 # Hierarchical cell: DIO_constants
 proc create_hier_cell_DIO_constants { parentCell nameHier } {
@@ -1345,71 +1536,6 @@ proc create_hier_cell_Constants { parentCell nameHier } {
   current_bd_instance $oldCurInst
 }
 
-# Hierarchical cell: input_slicers
-proc create_hier_cell_input_slicers { parentCell nameHier } {
-
-  variable script_folder
-
-  if { $parentCell eq "" || $nameHier eq "" } {
-     catch {common::send_msg_id "BD_TCL-102" "ERROR" "create_hier_cell_input_slicers() - Empty argument(s)!"}
-     return
-  }
-
-  # Get object for parentCell
-  set parentObj [get_bd_cells $parentCell]
-  if { $parentObj == "" } {
-     catch {common::send_msg_id "BD_TCL-100" "ERROR" "Unable to find parent cell <$parentCell>!"}
-     return
-  }
-
-  # Make sure parentObj is hier blk
-  set parentType [get_property TYPE $parentObj]
-  if { $parentType ne "hier" } {
-     catch {common::send_msg_id "BD_TCL-101" "ERROR" "Parent <$parentObj> has TYPE = <$parentType>. Expected to be <hier>."}
-     return
-  }
-
-  # Save current instance; Restore later
-  set oldCurInst [current_bd_instance .]
-
-  # Set parent object as current
-  current_bd_instance $parentObj
-
-  # Create cell and set as current instance
-  set hier_obj [create_bd_cell -type hier $nameHier]
-  current_bd_instance $hier_obj
-
-  # Create interface pins
-
-  # Create pins
-  create_bd_pin -dir I -from 31 -to 0 Din
-  create_bd_pin -dir O -from 8 -to 0 Dout
-  create_bd_pin -dir O -from 0 -to 0 Dout1
-
-  # Create instance: delay_slicer, and set properties
-  set delay_slicer [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 delay_slicer ]
-  set_property -dict [ list \
-   CONFIG.DIN_FROM {8} \
-   CONFIG.DOUT_WIDTH {9} \
- ] $delay_slicer
-
-  # Create instance: enable_slice, and set properties
-  set enable_slice [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 enable_slice ]
-  set_property -dict [ list \
-   CONFIG.DIN_FROM {9} \
-   CONFIG.DIN_TO {9} \
-   CONFIG.DOUT_WIDTH {1} \
- ] $enable_slice
-
-  # Create port connections
-  connect_bd_net -net axi_gpio_4_gpio_io_o [get_bd_pins Din] [get_bd_pins delay_slicer/Din] [get_bd_pins enable_slice/Din]
-  connect_bd_net -net enable_slice_Dout [get_bd_pins Dout1] [get_bd_pins enable_slice/Dout]
-  connect_bd_net -net xlslice_0_Dout [get_bd_pins Dout] [get_bd_pins delay_slicer/Dout]
-
-  # Restore current instance
-  current_bd_instance $oldCurInst
-}
-
 # Hierarchical cell: aux_modules
 proc create_hier_cell_aux_modules { parentCell nameHier } {
 
@@ -1588,32 +1714,20 @@ proc create_hier_cell_Trigger_Generator { parentCell nameHier } {
   # Create interface pins
 
   # Create pins
+  create_bd_pin -dir I -from 31 -to 0 Din
   create_bd_pin -dir I -from 31 -to 0 beam_off_i
   create_bd_pin -dir I -from 31 -to 0 beam_on_i
   create_bd_pin -dir I clk_i
   create_bd_pin -dir I -from 31 -to 0 feedback_off_i
   create_bd_pin -dir I -from 31 -to 0 feedback_on_i
   create_bd_pin -dir O -from 7 -to 0 led_o
-  create_bd_pin -dir I -from 8 -to 0 sel_i
-  create_bd_pin -dir I sel_i1
   create_bd_pin -dir I -from 15 -to 0 switch_i
 
   # Create instance: DIO_constants
   create_hier_cell_DIO_constants $hier_obj DIO_constants
 
-  # Create instance: Enabler, and set properties
-  set block_name mux_2
-  set block_cell_name Enabler
-  if { [catch {set Enabler [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
-     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   } elseif { $Enabler eq "" } {
-     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   }
-    set_property -dict [ list \
-   CONFIG.WIDTH {8} \
- ] $Enabler
+  # Create instance: Enablers
+  create_hier_cell_Enablers $hier_obj Enablers
 
   # Create instance: ExperimentDriver, and set properties
   set block_name signal_shutter
@@ -1651,22 +1765,29 @@ proc create_hier_cell_Trigger_Generator { parentCell nameHier } {
      return 1
    }
   
+  # Create instance: input_slicers
+  create_hier_cell_input_slicers $hier_obj input_slicers
+
   # Create port connections
-  connect_bd_net -net Enabler_out_o [get_bd_pins led_o] [get_bd_pins Enabler/out_o]
-  connect_bd_net -net ExperimentDriver_beam_o [get_bd_pins ExperimentDriver/beam_o] [get_bd_pins delay_max512clocks_0/data_i]
-  connect_bd_net -net ExperimentDriver_feedback_o [get_bd_pins ExperimentDriver/feedback_o] [get_bd_pins concatenator/In1] [get_bd_pins concatenator/In2] [get_bd_pins concatenator/In3]
+  connect_bd_net -net Beam_Enabler_out_o [get_bd_pins Enablers/out_o] [get_bd_pins delay_max512clocks_0/data_i]
+  connect_bd_net -net Din_1 [get_bd_pins Din] [get_bd_pins input_slicers/Din]
+  connect_bd_net -net ExperimentDriver_beam_o [get_bd_pins Enablers/a_in] [get_bd_pins ExperimentDriver/beam_o]
+  connect_bd_net -net ExperimentDriver_feedback_o [get_bd_pins Enablers/a_in1] [get_bd_pins ExperimentDriver/feedback_o]
+  connect_bd_net -net FeedbackEnabler_out_o [get_bd_pins Enablers/out_o2] [get_bd_pins concatenator/In1]
+  connect_bd_net -net TriggerEnabler_out_o [get_bd_pins Enablers/out_o1] [get_bd_pins concatenator/In2] [get_bd_pins concatenator/In3]
   connect_bd_net -net adc_adc_b [get_bd_pins switch_i] [get_bd_pins ExperimentDriver/switch_i]
   connect_bd_net -net axi_gpio_0_gpio_io_o [get_bd_pins beam_on_i] [get_bd_pins ExperimentDriver/beam_on_i]
   connect_bd_net -net axi_gpio_1_gpio_io_o [get_bd_pins beam_off_i] [get_bd_pins ExperimentDriver/beam_off_i]
   connect_bd_net -net axi_gpio_2_gpio_io_o [get_bd_pins feedback_off_i] [get_bd_pins ExperimentDriver/feedback_off_i]
   connect_bd_net -net axi_gpio_3_gpio_io_o [get_bd_pins feedback_on_i] [get_bd_pins ExperimentDriver/feedback_on_i]
   connect_bd_net -net clk_1 [get_bd_pins clk_i] [get_bd_pins ExperimentDriver/clk_i] [get_bd_pins delay_max512clocks_0/clk_i]
+  connect_bd_net -net concatenator_dout [get_bd_pins led_o] [get_bd_pins concatenator/dout]
   connect_bd_net -net delay_max512clocks_0_data_o [get_bd_pins concatenator/In0] [get_bd_pins delay_max512clocks_0/data_o]
-  connect_bd_net -net enable_slice_Dout [get_bd_pins sel_i1] [get_bd_pins Enabler/sel_i]
-  connect_bd_net -net xlconcat_0_dout [get_bd_pins Enabler/a_in] [get_bd_pins concatenator/dout]
-  connect_bd_net -net xlconstant_1_dout [get_bd_pins DIO_constants/dout1] [get_bd_pins concatenator/In4] [get_bd_pins concatenator/In5] [get_bd_pins concatenator/In6] [get_bd_pins concatenator/In7]
-  connect_bd_net -net xlconstant_2_dout [get_bd_pins DIO_constants/dout] [get_bd_pins Enabler/b_in]
-  connect_bd_net -net xlslice_0_Dout [get_bd_pins sel_i] [get_bd_pins delay_max512clocks_0/sel_i]
+  connect_bd_net -net input_slicers_Dout [get_bd_pins delay_max512clocks_0/sel_i] [get_bd_pins input_slicers/Dout]
+  connect_bd_net -net input_slicers_Dout1 [get_bd_pins Enablers/sel_i] [get_bd_pins input_slicers/Dout1]
+  connect_bd_net -net input_slicers_Dout2 [get_bd_pins Enablers/sel_i2] [get_bd_pins input_slicers/Dout2]
+  connect_bd_net -net input_slicers_Dout3 [get_bd_pins Enablers/sel_i1] [get_bd_pins input_slicers/Dout3]
+  connect_bd_net -net xlconstant_1_dout [get_bd_pins DIO_constants/dout1] [get_bd_pins Enablers/b_in] [get_bd_pins concatenator/In4] [get_bd_pins concatenator/In5] [get_bd_pins concatenator/In6] [get_bd_pins concatenator/In7]
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -1910,15 +2031,13 @@ proc create_root_design { parentCell } {
   # Create instance: aux_modules
   create_hier_cell_aux_modules [current_bd_instance .] aux_modules
 
-  # Create instance: input_slicers
-  create_hier_cell_input_slicers [current_bd_instance .] input_slicers
-
   # Create interface connections
   connect_bd_intf_net -intf_net soc_DDR [get_bd_intf_ports DDR] [get_bd_intf_pins LinuxControl/DDR]
   connect_bd_intf_net -intf_net soc_FIXED_IO [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins LinuxControl/FIXED_IO]
 
   # Create port connections
   connect_bd_net -net Enabler_out_o [get_bd_ports exp_n_tri_io] [get_bd_ports exp_p_tri_io] [get_bd_ports led_o] [get_bd_pins Trigger_Generator/led_o]
+  connect_bd_net -net LinuxControl_gpio_io_o3 [get_bd_pins LinuxControl/gpio_io_o3] [get_bd_pins Trigger_Generator/Din]
   connect_bd_net -net adc_adc_b [get_bd_pins Trigger_Generator/switch_i] [get_bd_pins adc/adc_b]
   connect_bd_net -net adc_adc_csn [get_bd_ports adc_csn_o] [get_bd_pins adc/adc_csn]
   connect_bd_net -net adc_clk_n_i_1 [get_bd_ports adc_clk_n_i] [get_bd_pins adc/adc_clk_n]
@@ -1929,7 +2048,6 @@ proc create_root_design { parentCell } {
   connect_bd_net -net axi_gpio_1_gpio_io_o [get_bd_pins LinuxControl/gpio_io_o4] [get_bd_pins Trigger_Generator/beam_off_i]
   connect_bd_net -net axi_gpio_2_gpio_io_o [get_bd_pins LinuxControl/gpio_io_o1] [get_bd_pins Trigger_Generator/feedback_off_i]
   connect_bd_net -net axi_gpio_3_gpio_io_o [get_bd_pins LinuxControl/gpio_io_o2] [get_bd_pins Trigger_Generator/feedback_on_i]
-  connect_bd_net -net axi_gpio_4_gpio_io_o [get_bd_pins LinuxControl/gpio_io_o3] [get_bd_pins input_slicers/Din]
   connect_bd_net -net clk_1 [get_bd_pins AnalogOutput/Clk_CI] [get_bd_pins LinuxControl/clk] [get_bd_pins Trigger_Generator/clk_i] [get_bd_pins adc/adc_clk]
   connect_bd_net -net dac_dac_clk [get_bd_ports dac_clk_o] [get_bd_pins AnalogOutput/dac_clk_o]
   connect_bd_net -net dac_dac_dat [get_bd_ports dac_dat_o] [get_bd_pins AnalogOutput/dac_dat_o]
@@ -1938,11 +2056,9 @@ proc create_root_design { parentCell } {
   connect_bd_net -net dac_dac_wrt [get_bd_ports dac_wrt_o] [get_bd_pins AnalogOutput/dac_wrt_o]
   connect_bd_net -net daisy_n_i_1 [get_bd_ports daisy_n_i] [get_bd_pins aux_modules/daisy_n_i]
   connect_bd_net -net daisy_p_i_1 [get_bd_ports daisy_p_i] [get_bd_pins aux_modules/daisy_p_i]
-  connect_bd_net -net enable_slice_Dout [get_bd_pins Trigger_Generator/sel_i1] [get_bd_pins input_slicers/Dout1]
   connect_bd_net -net soc_peripheral_aresetn [get_bd_pins AnalogOutput/Reset_RBI] [get_bd_pins LinuxControl/peripheral_aresetn]
   connect_bd_net -net util_ds_buf_2_OBUF_DS_N [get_bd_ports daisy_n_o] [get_bd_pins aux_modules/daisy_n_o]
   connect_bd_net -net util_ds_buf_2_OBUF_DS_P [get_bd_ports daisy_p_o] [get_bd_pins aux_modules/daisy_p_o]
-  connect_bd_net -net xlslice_0_Dout [get_bd_pins Trigger_Generator/sel_i] [get_bd_pins input_slicers/Dout]
 
   # Create address segments
   create_bd_addr_seg -range 0x00010000 -offset 0x41200000 [get_bd_addr_spaces LinuxControl/soc/processing_system7_0/Data] [get_bd_addr_segs LinuxControl/GPIOs/axi_gpio_0/S_AXI/Reg] SEG_axi_gpio_0_Reg
@@ -1955,6 +2071,7 @@ proc create_root_design { parentCell } {
   # Restore current instance
   current_bd_instance $oldCurInst
 
+  validate_bd_design
   save_bd_design
 }
 # End of create_root_design()
@@ -1966,6 +2083,4 @@ proc create_root_design { parentCell } {
 
 create_root_design ""
 
-
-common::send_msg_id "BD_TCL-1000" "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 
