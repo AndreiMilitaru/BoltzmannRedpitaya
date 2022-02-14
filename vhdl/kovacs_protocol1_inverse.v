@@ -9,6 +9,7 @@ module kovacs_protocol1_inverse(
     input wire clk_i,
     input wire [15:0] data_i,
     input wire [15:0] data_rescaled_i,
+    input wire [15:0] data_low_i,
     input wire [31:0] T1_i,
     input wire [31:0] T2_i,
     output wire [13:0] data_o,
@@ -65,10 +66,10 @@ module kovacs_protocol1_inverse(
     
     always @(*) begin
         case(state_q)
-            2'd0 : data_d = 14'd0;
+            2'd0 : data_d = data_low_i[15:2];
             2'd1 : data_d = data_rescaled_i[15:2];
             2'd2 : data_d = data_i[15:2];
-            default: data_d = 14'd0;
+            default: data_d = data_low_i[15:2];
         endcase
     end
     
